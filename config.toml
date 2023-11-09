@@ -1,0 +1,45 @@
+theme = "catppuccin_mocha"
+
+[editor]
+line-number = "relative"
+mouse = false
+shell = ["zsh", "-c"]
+auto-completion = true
+auto-format = true
+cursorline = true
+color-modes = true
+# lsp.display-inlay-hints = true
+bufferline = "always"
+
+[editor.file-picker]
+hidden = false
+
+[editor.cursor-shape]
+insert = "bar"
+normal = "block"
+select = "underline"
+
+[editor.indent-guides]
+render = true
+
+[keys.normal]
+C-d = ["half_page_down", "goto_window_center"]
+C-f = ":sh tmux neww tmux-sessionizer"
+C-j = ["extend_to_line_bounds", "delete_selection", "paste_after"]
+C-k = ["extend_to_line_bounds", "delete_selection", "move_line_up", "paste_before"]
+C-u = ["half_page_up", "goto_window_center"]
+g = { a = "code_action" }
+K = "hover"
+
+
+[keys.insert]
+j = { k = "normal_mode" } # Maps `jk` to exit insert mode
+
+[editor.statusline]
+left = ["mode", "spinner"]
+center = ["file-name"]
+right = ["file-encoding", "file-line-ending", "file-type"]
+separator = "|"
+mode.normal = "NORMAL"
+mode.insert = "INSERT"
+mode.select = "SELECT"
