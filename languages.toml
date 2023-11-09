@@ -4,6 +4,7 @@ indent = { tab-width = 4, unit = "\t" }
 auto-format = true
 roots = ["svelte.config.js"]
 language-servers = ["tailwindcss-ls", "svelteserver"]
+
 [[language]]
 name = "python"
 language-servers = [ "pyright" ]
