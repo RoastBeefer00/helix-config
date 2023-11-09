@@ -24,7 +24,6 @@ render = true
 
 [keys.normal]
 C-d = ["half_page_down", "goto_window_center"]
-C-f = ":sh tmux neww tmux-sessionizer"
 C-j = ["extend_to_line_bounds", "delete_selection", "paste_after"]
 C-k = ["extend_to_line_bounds", "delete_selection", "move_line_up", "paste_before"]
 C-u = ["half_page_up", "goto_window_center"]
