@@ -24,11 +24,11 @@ render = true
 
 [keys.normal]
 C-d = ["half_page_down", "goto_window_center"]
-C-j = ["extend_to_line_bounds", "delete_selection", "paste_after"]
-C-k = ["extend_to_line_bounds", "delete_selection", "move_line_up", "paste_before"]
+C-k = "hover"
 C-u = ["half_page_up", "goto_window_center"]
 g = { a = "code_action" }
-K = "hover"
+J = ["extend_to_line_bounds", "delete_selection", "paste_after"]
+K = ["extend_to_line_bounds", "delete_selection", "move_line_up", "paste_before"]
 
 
 [keys.insert]
