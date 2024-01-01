@@ -1,0 +1,6 @@
+inherits = "rose_pine"
+
+"ui.background" = { fg = "foreground" }
+
+"string" = "foam"
+"ui.bufferline.active" = { fg = "foam", bg = "base", underline = { color = "foam", style = "line" } }

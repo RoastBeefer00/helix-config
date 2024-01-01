@@ -1,3 +1,4 @@
 node_modules
 src-tauri/docs
 src-tauri/target
+target
