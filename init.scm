@@ -10,12 +10,12 @@
 (require "oil/oil.scm")
 (require "oil/oil-notify.scm")
 
-(require "helix-lazygit/lazygit.scm")
-(require "helix-sidekick/sidekick.scm")
+(require "lazygit.hx/lazygit.scm")
+(require "sidekick.hx/sidekick.scm")
 (set-sidekick-backend! 'pty)
 (require "vim.hx/init.scm")
 (set-vim-keybindings!)
-(require "helix-fidget/fidget.scm")
+(require "fidget.hx/fidget.scm")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
