@@ -135,8 +135,8 @@
 
 ;;;; LSP progress hook
 
-(define (fidget-on-lsp-progress server-id token kind title message percentage)
-  (define key (string-append (number->string server-id) ":" token))
+(define (fidget-on-lsp-progress server-name token kind title message percentage)
+  (define key (string-append server-name ":" token))
   (cond
     [(equal? kind "begin")
      (fidget-upsert! key title message percentage)
