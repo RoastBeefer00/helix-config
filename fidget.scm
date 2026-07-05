@@ -50,10 +50,10 @@
 
 (define *fidget-width* 46)
 
-(define (for-each-indexed fn lst i)
+(define (for-each-indexed func lst i)
   (unless (null? lst)
-    (fn i (car lst))
-    (for-each-indexed fn (cdr lst) (+ i 1))))
+    (func i (car lst))
+    (for-each-indexed func (cdr lst) (+ i 1))))
 
 (define (fidget-format-label spin title message percentage)
   (define parts
