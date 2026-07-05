@@ -9,6 +9,7 @@
     (#:name helix-sidekick #:git-url "https://github.com/RoastBeefer00/sidekick.hx.git")
     ;; vim.hx — uncomment once PR is merged upstream or install from fork:
     ;; (#:name vim.hx #:git-url "https://github.com/RoastBeefer00/vim.hx.git")
+    (#:name helix-fidget #:git-url "https://github.com/RoastBeefer00/helix-fidget.git")
     ))
 
 (define dylibs '())

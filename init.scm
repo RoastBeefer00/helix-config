@@ -15,7 +15,7 @@
 (set-sidekick-backend! 'pty)
 (require "vim.hx/init.scm")
 (set-vim-keybindings!)
-(require "fidget.scm")
+(require "helix-fidget/fidget.scm")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
