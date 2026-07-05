@@ -10,20 +10,24 @@
 (require "oil/oil.scm")
 (require "oil/oil-notify.scm")
 
+(require "helix-lazygit/lazygit.scm")
+(require "helix-sidekick/sidekick.scm")
+(set-sidekick-backend! 'pty)
 (require "vim.hx/init.scm")
 (set-vim-keybindings!)
+(require "fidget.scm")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; Picking one from the possible themes is _fine_
 ;; (define possible-themes '("focus_nova"))
 
-(define (select-random lst)
-  (let ([index (rand::rng->gen-range 0 (length lst))]) (list-ref lst index)))
-
-(define (randomly-pick-theme options)
-  ;; Randomly select the theme from the possible themes list
-  (helix.theme (select-random options)))
+;; (define (select-random lst)
+;;   (let ([index (rand::rng->gen-range 0 (length lst))]) (list-ref lst index)))
+;;
+;; (define (randomly-pick-theme options)
+;;   ;; Randomly select the theme from the possible themes list
+;;   (helix.theme (select-random options)))
 
 ;; (randomly-pick-theme possible-themes)
 
