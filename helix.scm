@@ -115,7 +115,7 @@
   (define v (editor-focus))
   (move-fn)
   (when (equal? v (editor-focus))
-    (helix.run-shell-command "tmux" "select-pane" tmux-flag)))
+    (helix.run-shell-command (string-append "tmux select-pane " tmux-flag))))
 
 (provide smart-window-left!)
 (define (smart-window-left!)
