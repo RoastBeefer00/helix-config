@@ -62,8 +62,8 @@
          (contract/out set-default-terminal-rows! (->/c int? void?))
          (contract/out set-default-shell! (->/c string? void?))
          xplr
-         lazygit
-         close-lazygit
+         ;; lazygit
+         ;; close-lazygit
          open-debug-window
          close-debug-window
          hide-terminal
@@ -252,10 +252,15 @@
         (pop-last-component! (Terminal-name term))
         (helix-await-callback (async-try-read-line *pty-process*)
                               (lambda (line)
-                                (when line
-                                  (callback-function *vte* line)
-                                  ;; Kick off the terminal loop again
-                                  (terminal-loop-inner))))))
+                                (if line
+                                    (begin
+                                      (callback-function *vte* line)
+                                      ;; Kick off the terminal loop again
+                                      (terminal-loop-inner))
+                                    ;; Process exited — set kill-switch so renderers clean up
+                                    (begin
+                                      (set-box! *kill-switch* #t)
+                                      (pop-last-component! (Terminal-name term))))))))
 
   (terminal-loop-inner))
 
