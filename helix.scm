@@ -10,8 +10,8 @@
 ; (require "cogs/themes/spacemacs.scm")
 
 (require "term.scm")
-(require "helix-lazygit/lazygit.scm")
-(require "helix-sidekick/sidekick.scm")
+;; (require "helix-lazygit/lazygit.scm")
+;; (require "helix-sidekick/sidekick.scm")
 (require "cogs/file-tree.scm")
 (require "cogs/recentf.scm")
 (require "cogs/git-status-picker.scm")
@@ -19,7 +19,7 @@
 (require "cogs/helix-ext.scm")
 ; (require "cogs/themes/spacemacs.scm")
 
-(set-sidekick-backend! 'pty)
+;; (set-sidekick-backend! 'pty)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -39,21 +39,21 @@
          load-buffer
          expanded-shell
          ;; helix-sidekick/sidekick.scm
-         sidekick
-         close-sidekick
-         sidekick-send!
-         sidekick-send-selection!
-         sidekick-send-buffer!
-         set-sidekick-cmd!
-         set-sidekick-backend!
+         ;; sidekick
+         ;; close-sidekick
+         ;; sidekick-send!
+         ;; sidekick-send-selection!
+         ;; sidekick-send-buffer!
+         ;; set-sidekick-cmd!
+         ;; set-sidekick-backend!
          ;; cogs/recentf.scm
          recentf-open-files
          recentf-snapshot
          ;; cogs/git-status-picker.scm
          create-gs-picker
          ;; helix-lazygit/lazygit.scm
-         lazygit
-         close-lazygit
+         ;; lazygit
+         ;; close-lazygit
          ;; term.scm
          open-term
          kill-active-terminal
@@ -103,6 +103,35 @@
 (provide move-window-left)
 (define (move-window-left)
   (helix.static.move-window-far-left))
+
+;;;; Smart split / tmux-pane navigation
+;;
+;; Tries to move to an adjacent helix split. If already at the edge
+;; (view didn't change), falls back to navigating the tmux pane instead.
+;; Pairs with the tmux.conf is_hx_or_vim bindings that forward C-h/j/k/l
+;; to helix when it's focused.
+
+(define (smart-window-nav! move-fn tmux-flag)
+  (define v (editor-focus))
+  (move-fn)
+  (when (equal? v (editor-focus))
+    (helix.run-shell-command "tmux" "select-pane" tmux-flag)))
+
+(provide smart-window-left!)
+(define (smart-window-left!)
+  (smart-window-nav! helix.static.jump_view_left "-L"))
+
+(provide smart-window-right!)
+(define (smart-window-right!)
+  (smart-window-nav! helix.static.jump_view_right "-R"))
+
+(provide smart-window-up!)
+(define (smart-window-up!)
+  (smart-window-nav! helix.static.jump_view_up "-U"))
+
+(provide smart-window-down!)
+(define (smart-window-down!)
+  (smart-window-nav! helix.static.jump_view_down "-D"))
 
 ; (define (test-component)
 ;   (push-component!
