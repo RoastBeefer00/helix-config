@@ -43,15 +43,15 @@ helix-setup --force
 
 | Package | What it does |
 |---|---|
-| `vim.hx` | Full vim-motion emulation |
-| `surround.hx` | Vim surround operations |
-| `lazygit.hx` | Lazygit in a floating terminal |
-| `sidekick.hx` | AI assistant side panel |
-| `fidget.hx` | LSP progress spinner |
-| `notify` | Statusline notifications |
-| `oil` | File manager |
-| `steel-pty` | PTY + VTE terminal emulator (Rust dylib) |
-| `helix-file-watcher` | Background file watcher (Rust dylib) |
+| [`vim.hx`](https://github.com/RoastBeefer00/vim.hx) | Full vim-motion emulation |
+| [`surround.hx`](https://github.com/RoastBeefer00/surround.hx) | Vim surround operations |
+| [`lazygit.hx`](https://github.com/RoastBeefer00/lazygit.hx) | Lazygit in a floating terminal |
+| [`sidekick.hx`](https://github.com/RoastBeefer00/sidekick.hx) | AI assistant side panel |
+| [`fidget.hx`](https://github.com/RoastBeefer00/fidget.hx) | LSP progress spinner |
+| [`notify`](https://github.com/chuwy/notify.hx) | Statusline notifications |
+| [`oil`](https://github.com/Ra77a3l3-jar/oil.hx) | File manager |
+| [`steel-pty`](https://github.com/mattwparas/steel-pty) | PTY + VTE terminal emulator (Rust dylib) |
+| [`helix-file-watcher`](https://github.com/mattwparas/helix-file-watcher) | Background file watcher (Rust dylib) |
 
 ## Development
 
