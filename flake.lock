@@ -1,0 +1,90 @@
+{
+  "nodes": {
+    "helix-steel": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ],
+        "rust-overlay": [
+          "rust-overlay"
+        ]
+      },
+      "locked": {
+        "lastModified": 1783438817,
+        "narHash": "sha256-3ld+BZksgPjbXNLLKWJwZJaONAD2lZxpT62yx0T4C5Y=",
+        "owner": "RoastBeefer00",
+        "repo": "evilhelix",
+        "rev": "bce927d7a2f0419f53137d8314877e517fa1f95d",
+        "type": "github"
+      },
+      "original": {
+        "owner": "RoastBeefer00",
+        "ref": "local/combined-features",
+        "repo": "evilhelix",
+        "type": "github"
+      }
+    },
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1783224372,
+        "narHash": "sha256-8i/87eeoqiGE4yOTjwSA3Eh/ziJRQEmd/unYU+K27sk=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "d407951447dcd00442e97087bf374aad70c04cea",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "root": {
+      "inputs": {
+        "helix-steel": "helix-steel",
+        "nixpkgs": "nixpkgs",
+        "rust-overlay": "rust-overlay",
+        "steel-src": "steel-src"
+      }
+    },
+    "rust-overlay": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1783404876,
+        "narHash": "sha256-DAh1CfiRVwr8Szkj5PiHmsqh10NHPb8SKPx7w/B+l9E=",
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "rev": "3c161f20193bd91a73913b417e5b06d41860336d",
+        "type": "github"
+      },
+      "original": {
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "type": "github"
+      }
+    },
+    "steel-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1781985802,
+        "narHash": "sha256-TP1hmlju7h7ce0dnSKuIMk7XK5kcloqiyR+sxumNsQk=",
+        "owner": "mattwparas",
+        "repo": "steel",
+        "rev": "dec633b908afeafeaf62bab457a92e2bf873745a",
+        "type": "github"
+      },
+      "original": {
+        "owner": "mattwparas",
+        "repo": "steel",
+        "type": "github"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}
