@@ -115,9 +115,7 @@
   (define v (editor-focus))
   (move-fn)
   (when (equal? v (editor-focus))
-    ;; Use $TMUX_PANE so the server knows which pane is the origin even when
-    ;; called from a subprocess without a controlling terminal.
-    (helix.run-shell-command (string-append "tmux select-pane -t \"$TMUX_PANE\" " tmux-flag))))
+    (helix.run-shell-command (string-append "tmux select-pane " tmux-flag "; or true"))))
 
 (provide smart-window-left!)
 (define (smart-window-left!)

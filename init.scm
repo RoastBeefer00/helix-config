@@ -4,61 +4,151 @@
 (require (prefix-in helix. "helix/commands.scm"))
 (require (prefix-in helix.static. "helix/static.scm"))
 (require "helix/configuration.scm")
+(require "helix/editor.scm")
 (require "splash.scm")
 (require "focus.scm")
 (require "notify/notify.scm")
 (require "oil/oil.scm")
-(require "oil/oil-notify.scm")
 
 (require "lazygit.hx/lazygit.scm")
 (require "sidekick.hx/sidekick.scm")
+(require "surround.hx/surround.scm")
+(set-surround-keybindings!)
 (set-sidekick-backend! 'pty)
+
+;; Override: C-l focuses the sidekick panel when at the right edge instead of
+;; falling through to tmux (which can't navigate into a component overlay).
+(define (smart-window-right!)
+  (define v (editor-focus))
+  (helix.static.jump_view_right)
+  (when (equal? v (editor-focus))
+    (sidekick-focus!)))
 (require "vim.hx/init.scm")
 (set-vim-keybindings!)
 (require "fidget.hx/fidget.scm")
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;; Motion helpers ;;;;;;;;;;;;;;;;;;;;;;
 
-;; Picking one from the possible themes is _fine_
-;; (define possible-themes '("focus_nova"))
+;; C-d / C-u + keep cursor centered (nixvim: <C-d>zz / <C-u>zz)
+(define (page-down-center)
+  (helix.static.page_cursor_half_down)
+  (helix.static.align_view_center))
 
-;; (define (select-random lst)
-;;   (let ([index (rand::rng->gen-range 0 (length lst))]) (list-ref lst index)))
-;;
-;; (define (randomly-pick-theme options)
-;;   ;; Randomly select the theme from the possible themes list
-;;   (helix.theme (select-random options)))
+(define (page-up-center)
+  (helix.static.page_cursor_half_up)
+  (helix.static.align_view_center))
 
-;; (randomly-pick-theme possible-themes)
+;; n / N + keep cursor centered (nixvim: nzzzv / Nzzzv)
+(define (search-next-center)
+  (helix.static.search_next)
+  (helix.static.align_view_center))
 
-;;;;;;;;;;;;;;;;;;;;;;;; Default modes ;;;;;;;;;;;;;;;;;;;;;;;
+(define (search-prev-center)
+  (helix.static.search_prev)
+  (helix.static.align_view_center))
 
-;; Enable the recentf snapshot, will watch every 2 minutes for active files,
-;; and flush those down to disk
-;; (recentf-snapshot)
+;; Add a blank line below/above without entering insert mode
+;; (nixvim: o<Esc>k / O<Esc>k)
+(define (open-line-below!)
+  (helix.static.open_below)
+  (helix.static.normal_mode)
+  (helix.static.move_visual_line_up))
+
+(define (open-line-above!)
+  (helix.static.open_above)
+  (helix.static.normal_mode)
+  (helix.static.move_visual_line_down))
+
+;; Vertical / horizontal split then focus the new pane
+;; (nixvim: <cmd>vsplit<CR><C-w><right> / <cmd>split<CR><C-w><down>)
+(define (vsplit-and-move)
+  (helix.vsplit)
+  (helix.static.jump_view_right))
+
+(define (hsplit-and-move)
+  (helix.hsplit)
+  (helix.static.jump_view_down))
+
+;; Launch tmux-sessionizer in a new tmux window (nixvim: <C-f>)
+(define (tmux-sessionizer!)
+  (helix.run-shell-command "tmux" "neww" "~/.local/scripts/tmux-sessionizer"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;; Keybindings ;;;;;;;;;;;;;;;;;;;;;;;
 
-;; To remove a binding, set it to 'no_op
-;; For example, this will make it impossible to enter insert mode:
-;; (hash "normal" (hash "i" 'no_op))
 (keymap (global)
-        (normal (C-r (f ":recentf-open-files"))
-                (C-h ":smart-window-left!")
-                (C-j ":smart-window-down!")
-                (C-k ":smart-window-up!")
-                (C-l ":smart-window-right!")
-                (space (l ":load-buffer")
-                       (o ":eval-sexpr")
-                       (s ":sidekick")
-                       (S ":sidekick-send-selection!")
-                       (B ":sidekick-send-buffer!")
-                       (p ":sidekick-prompt-picker!")
-                       (g ":lazygit")
-                       (e ":oil")))
-        (select (space (S ":sidekick-send-selection!")
-                       (B ":sidekick-send-buffer!")
-                       (p ":sidekick-prompt-picker!"))))
+        (normal
+          ;; Window navigation (smart-splits / nixvim: <C-hjkl>)
+          (C-h ":smart-window-left!")
+          (C-j ":smart-window-down!")
+          (C-k ":smart-window-up!")
+          (C-l ":smart-window-right!")
+          ;; Scroll + center (nixvim: <C-d>zz / <C-u>zz)
+          (C-d ":page-down-center")
+          (C-u ":page-up-center")
+          ;; Tmux sessionizer (nixvim: <C-f>)
+          (C-f ":tmux-sessionizer!")
+          ;; Search + center (nixvim: nzzzv / Nzzzv)
+          (n ":search-next-center")
+          (N ":search-prev-center")
+          ;; Recent files
+          (C-r (f ":recentf-open-files"))
+          ;; Git hunk navigation (nixvim: ]c/[c — helix native uses ]g/[g)
+          ;; (] (c "goto_next_change"))
+          ;; ([ (c "goto_prev_change"))
+          (space
+            ;; Helix-specific
+            (l ":load-buffer")
+            ;; Open blank line without entering insert (nixvim: <leader>o/<leader>O)
+            (o ":open-line-below!")
+            (O ":open-line-above!")
+            ;; Sidekick / Claude
+            ;; (s ":sidekick")
+            ;; (S ":sidekick-send-selection!")
+            ;; (B ":sidekick-send-buffer!")
+            ;; (p ":sidekick-prompt-picker!")
+            ;; Sidekick a-prefix (nixvim: <leader>aa, <leader>at, <leader>af, <leader>ap)
+            (a (c ":sidekick")
+               (t ":sidekick-send-selection!")
+               (f ":sidekick-send-buffer!")
+               (v ":sidekick-send-selection!")
+               (p ":sidekick-prompt-picker!"))
+            ;; Oil file manager (nixvim: -)
+            (e ":oil")
+            ;; LazyGit (nixvim: <leader>gg)
+            (g (g ":lazygit"))
+            ;; File / search pickers (nixvim: <leader>ff/fg/fw/fd/fo/fc/<leader><leader>)
+            (f (f "file_picker")
+               (g "global_search")
+               (o ":recentf-open-files")
+               (w "search_selection")
+               (d "workspace_diagnostics_picker")
+               (c "changed_file_picker"))
+            ;; Buffer picker (nixvim: <leader><leader>)
+            (space "buffer_picker")
+            ;; Window splits + nav (nixvim: <leader>wv/<leader>ws/<leader>whjkl)
+            (w (v ":vsplit-and-move")
+               (s ":hsplit-and-move")
+               (h ":smart-window-left!")
+               (j ":smart-window-down!")
+               (k ":smart-window-up!")
+               (l ":smart-window-right!"))
+            ;; Diagnostics (nixvim: <leader>xx/<leader>xd/<leader>xs)
+            (x (x "diagnostics_picker")
+               (d "diagnostics_picker")
+               (s "workspace_diagnostics_picker"))))
+        ;; Move selected lines up/down (nixvim: visual J/K → :m '>+1 / :m '<-2)
+        (select
+          (J "move_line_down")
+          (K "move_line_up")
+          (space
+            (a (v ":sidekick-send-selection!")
+               (p ":sidekick-prompt-picker!"))
+            (S ":sidekick-send-selection!")
+            (B ":sidekick-send-buffer!")
+            (p ":sidekick-prompt-picker!")))
+        ;; jk to exit insert mode (nixvim: jk → <Esc>)
+        (insert
+          (j (k ":vim-exit-insert-mode"))))
 
 (define scm-keybindings (hash "insert" (hash "ret" ':scheme-indent "C-l" ':insert-lambda)))
 
@@ -70,16 +160,11 @@
 (merge-keybindings standard-keybindings scm-keybindings)
 ;; (merge-keybindings file-tree-base FILE-TREE-KEYBINDINGS)
 
-;; <scratch> + <doc id> is probably the best way to handle this?
-;; (set-global-buffer-or-extension-keymap (hash "scm" standard-keybindings FILE-TREE file-tree-base))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;; Options ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (file-picker (fp-hidden #f))
 (cursorline #t)
 (soft-wrap (sw-enable #t))
-
-;; (randomly-pick-theme possible-themes)
 
 ;; New LSP definitions
 (define-lsp "steel-language-server" (command "steel-language-server") (args '()))
@@ -93,6 +178,3 @@
 
 (when (equal? (command-line) '("hx"))
   (show-splash))
-
-;; Probably should be a symbol?
-; (register-hook! 'post-insert-char 'prompt-on-char-press)

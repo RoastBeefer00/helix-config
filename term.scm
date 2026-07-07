@@ -646,13 +646,11 @@
         (pty-process-send-command *pty-process* "\x1b;[D")
         event-result/consume]
 
-       ;; C-h/j/k/l: let helix handle split navigation instead of eating them
-       [(and (equal? (key-event-modifier event) key-modifier-ctrl)
-             (member char '(#\h #\j #\k #\l)))
-        event-result/ignore]
-
        [char
-        (pty-process-send-command-char *pty-process* char)
+        (if (equal? (key-event-modifier event) key-modifier-ctrl)
+            (pty-process-send-command *pty-process*
+              (string (integer->char (max 1 (- (char->integer (char-upcase char)) 64)))))
+            (pty-process-send-command-char *pty-process* char))
         event-result/consume]
 
        [(mouse-event? event) (handle-mouse-event state event *vte*)]
