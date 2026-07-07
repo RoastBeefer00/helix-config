@@ -74,7 +74,7 @@
         cp ${self}/ignore         "$out/ignore"
         cp ${self}/cog.scm        "$out/cog.scm"
 
-        for f in init.scm helix.scm term.scm splash.scm focus.scm fidget.scm; do
+        for f in init.scm helix.scm term.scm splash.scm focus.scm; do
           cp "${self}/$f" "$out/$f"
         done
 
@@ -131,7 +131,7 @@
           install_item "$SRC/languages.toml" "$DEST/languages.toml"
           install_item "$SRC/ignore"         "$DEST/ignore"
 
-          for f in init.scm helix.scm term.scm splash.scm focus.scm fidget.scm; do
+          for f in init.scm helix.scm term.scm splash.scm focus.scm; do
             install_item "$SRC/$f" "$DEST/$f"
           done
 
