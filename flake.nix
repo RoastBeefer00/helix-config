@@ -144,17 +144,29 @@
           echo "Done. Launch helix with: hx"
         '';
       };
+      # Wrapper that auto-runs helix-setup on first launch if config is missing.
+      wrappedHx = pkgs.writeShellApplication {
+        name = "hx";
+        runtimeInputs = [setupScript];
+        text = ''
+          HELIX_DIR="''${XDG_CONFIG_HOME:-$HOME/.config}/helix"
+          if [ ! -e "$HELIX_DIR/init.scm" ]; then
+            echo "First launch: running helix-setup..."
+            helix-setup
+          fi
+          exec ${hx}/bin/hx "$@"
+        '';
+      };
     in {
-      # `nix profile install github:RoastBeefer00/helix-config` gives you:
-      #   hx            — the custom helix binary
-      #   helix-setup   — run once per machine to deploy config + forge install
+      # `nix profile install github:RoastBeefer00/helix-config` then just run `hx`.
+      # Config is deployed automatically on first launch.
       default = pkgs.symlinkJoin {
         name = "helix-with-config";
-        paths = [hx setupScript];
+        paths = [wrappedHx setupScript];
         meta.mainProgram = "hx";
       };
 
-      inherit hx setupScript configFiles forgeCli;
+      inherit hx wrappedHx setupScript configFiles forgeCli;
     });
 
     apps = eachSystem (system: {
