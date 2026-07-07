@@ -54,6 +54,8 @@
         src = steel-src;
         cargoLock.lockFile = "${steel-src}/Cargo.lock";
         cargoBuildFlags = ["--package" "steel-forge"];
+        nativeBuildInputs = [pkgs.perl pkgs.pkg-config];
+        buildInputs = [pkgs.openssl];
         doCheck = false;
         meta.mainProgram = "forge";
       };
@@ -144,29 +146,15 @@
           echo "Done. Launch helix with: hx"
         '';
       };
-      # Wrapper that auto-runs helix-setup on first launch if config is missing.
-      wrappedHx = pkgs.writeShellApplication {
-        name = "hx";
-        runtimeInputs = [setupScript];
-        text = ''
-          HELIX_DIR="''${XDG_CONFIG_HOME:-$HOME/.config}/helix"
-          if [ ! -e "$HELIX_DIR/init.scm" ]; then
-            echo "First launch: running helix-setup..."
-            helix-setup
-          fi
-          exec ${hx}/bin/hx "$@"
-        '';
-      };
     in {
-      # `nix profile install github:RoastBeefer00/helix-config` then just run `hx`.
-      # Config is deployed automatically on first launch.
+      # `nix profile install github:RoastBeefer00/helix-config` then run `helix-setup`.
       default = pkgs.symlinkJoin {
         name = "helix-with-config";
-        paths = [wrappedHx setupScript];
+        paths = [hx setupScript];
         meta.mainProgram = "hx";
       };
 
-      inherit hx wrappedHx setupScript configFiles forgeCli;
+      inherit hx setupScript configFiles forgeCli;
     });
 
     apps = eachSystem (system: {
