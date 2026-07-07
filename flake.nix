@@ -148,6 +148,11 @@
           echo "    Dylibs (steel-pty, helix-file-watcher) go to ~/.local/share/steel/native/"
           cd "$SRC"
           forge install
+
+          STEEL_HOME="''${STEEL_HOME:-$HOME/.local/share/steel}"
+          ln -sf "$SRC/term.scm" "$STEEL_HOME/cogs/steel-pty/term.scm"
+          echo "    linked steel-pty/term.scm override"
+
           echo ""
           echo "Done. Launch helix with: hx"
         '';
