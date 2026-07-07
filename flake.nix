@@ -156,7 +156,7 @@
       # `nix profile install github:RoastBeefer00/helix-config` then run `helix-setup`.
       default = pkgs.symlinkJoin {
         name = "helix-with-config";
-        paths = [hx setupScript];
+        paths = [hx setupScript forgeCli rustToolchain];
         meta.mainProgram = "hx";
       };
 
