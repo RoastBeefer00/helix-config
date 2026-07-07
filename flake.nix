@@ -113,8 +113,10 @@
           install_item() {
             local src="$1" dst="$2"
             if $FORCE || [ ! -e "$dst" ]; then
+              chmod -R u+w "$dst" 2>/dev/null || true
               rm -rf "$dst"
               cp -r "$src" "$dst"
+              chmod -R u+w "$dst" 2>/dev/null || true
               echo "    installed: $(basename "$dst")"
             else
               echo "    skipped (exists): $(basename "$dst")  [--force to overwrite]"
