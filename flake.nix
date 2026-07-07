@@ -113,9 +113,11 @@
           install_item() {
             local src="$1" dst="$2"
             if $FORCE || [ ! -e "$dst" ]; then
+              chflags -R nouchg "$dst" 2>/dev/null || true
               chmod -R u+w "$dst" 2>/dev/null || true
               rm -rf "$dst"
               cp -r "$src" "$dst"
+              chflags -R nouchg "$dst" 2>/dev/null || true
               chmod -R u+w "$dst" 2>/dev/null || true
               echo "    installed: $(basename "$dst")"
             else
