@@ -1,34 +1,8 @@
-; ─── rstml-specific ───────────────────────────────────────────────────────────
-
-(doctype_node) @constant
-
-(doctype_node ["<!" ">"] @tag.delimiter)
-
-(open_tag ["<" ">"] @tag.delimiter)
-
-(close_tag ["</" ">"] @tag.delimiter)
-
-(self_closing_element_node ["<" "/>"] @tag.delimiter)
-
-(node_identifier ["-" ":" "::"] @punctuation.delimiter)
-
-(open_tag name: (node_identifier) @tag)
-
-(close_tag name: (node_identifier) @tag)
-
-(self_closing_element_node name: (node_identifier) @tag)
-
-(node_attribute name: (node_identifier) @tag.attribute)
-
-(node_attribute value: (rust_expression (string_literal) @string))
-(node_attribute value: (rust_expression (raw_string_literal) @string))
-
-(text_node) @string
-
-(comment_node ["<!--" "-->"] @comment)
-(comment_node) @comment
-
 ; ─── Rust expression highlights (rstml embeds Rust exprs, not type decls) ─────
+; NOTE: rstml-specific tag/attribute rules are placed at the END so they win.
+; Helix highlight precedence is "later pattern wins" for the same node range,
+; and tag names are (node_identifier (identifier)) — the inner identifier would
+; otherwise be captured by the (identifier) @variable catch-all below.
 ; Inlined from runtime/queries/rust/highlights.scm minus nodes absent in rstml:
 ;   type_parameter, array_type, shebang, gen_block
 
@@ -334,3 +308,28 @@
 
 (metavariable) @variable.parameter
 (fragment_specifier) @type
+
+; ─── rstml-specific (placed last so tag/attr captures win over @variable) ─────
+
+(doctype_node) @constant
+(doctype_node ["<!" ">"] @tag.delimiter)
+
+(open_tag ["<" ">"] @tag.delimiter)
+(close_tag ["</" ">"] @tag.delimiter)
+(self_closing_element_node ["<" "/>"] @tag.delimiter)
+
+(node_identifier ["-" ":" "::"] @punctuation.delimiter)
+
+(open_tag name: (node_identifier (identifier) @tag))
+(close_tag name: (node_identifier (identifier) @tag))
+(self_closing_element_node name: (node_identifier (identifier) @tag))
+
+(node_attribute name: (node_identifier (identifier) @tag.attribute))
+
+(node_attribute value: (rust_expression (string_literal) @string))
+(node_attribute value: (rust_expression (raw_string_literal) @string))
+
+(text_node) @string
+
+(comment_node ["<!--" "-->"] @comment)
+(comment_node) @comment
