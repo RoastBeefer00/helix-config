@@ -18,10 +18,6 @@
 
 (node_attribute name: (node_identifier) @tag.attribute)
 
-(generic_identifier
-  ["<" ">"] @punctuation.delimiter
-  (node_identifier) @tag)
-
 (text_node) @string
 
 (comment_node ["<!--" "-->"] @comment)
