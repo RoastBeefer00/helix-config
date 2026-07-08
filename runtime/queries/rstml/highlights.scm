@@ -236,7 +236,6 @@
 [
   "static"
   "const"
-  "raw"
   "ref"
   "move"
   "dyn"
