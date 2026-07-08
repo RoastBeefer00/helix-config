@@ -18,6 +18,9 @@
 
 (node_attribute name: (node_identifier) @tag.attribute)
 
+(node_attribute value: (rust_expression (string_literal) @string))
+(node_attribute value: (rust_expression (raw_string_literal) @string))
+
 (text_node) @string
 
 (comment_node ["<!--" "-->"] @comment)
