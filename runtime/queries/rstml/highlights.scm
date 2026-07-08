@@ -1,3 +1,5 @@
+; inherits: rust
+
 (doctype_node) @constant
 
 (doctype_node ["<!" ">"] @tag.delimiter)
