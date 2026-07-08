@@ -81,6 +81,7 @@
         cp -r ${self}/cogs   "$out/cogs"
         cp -r ${self}/themes "$out/themes"
 
+        cp -r ${self}/runtime "$out/runtime"
 
         # Our extended term.scm overrides the one bundled inside steel-pty.
         mkdir -p "$out/steel-pty"
@@ -138,6 +139,21 @@
           install_item "$SRC/cogs"   "$DEST/cogs"
           install_item "$SRC/themes" "$DEST/themes"
 
+          # Tree-sitter query overrides (rstml highlights + Rust injection rule).
+          mkdir -p "$DEST/runtime/queries"
+          for qdir in "$SRC/runtime/queries"/*/; do
+            lang=$(basename "$qdir")
+            mkdir -p "$DEST/runtime/queries/$lang"
+            for qfile in "$qdir"*.scm; do
+              [ -f "$qfile" ] || continue
+              install_item "$qfile" "$DEST/runtime/queries/$lang/$(basename "$qfile")"
+            done
+          done
+
+          # Compile any grammars not shipped with the helix binary.
+          echo ""
+          echo "==> Building custom tree-sitter grammars..."
+          hx --grammar build rstml 2>&1 | sed 's/^/    /'
 
           mkdir -p "$DEST/steel-pty"
           install_item "$SRC/steel-pty/term.scm" "$DEST/steel-pty/term.scm"

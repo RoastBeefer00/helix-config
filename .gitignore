@@ -1,4 +1,7 @@
 runtime
+!runtime/
+!runtime/queries/
+!runtime/queries/**
 .devenv/
 .direnv/
 .envrc

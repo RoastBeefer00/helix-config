@@ -9,6 +9,7 @@ auto-format = true
 cursorline = true
 color-modes = true
 lsp.display-inlay-hints = true
+rainbow-brackets = true
 bufferline = "always"
 
 # [editor.file-picker]
