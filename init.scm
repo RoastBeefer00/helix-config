@@ -143,6 +143,13 @@
         (select
           (J "move_line_down")
           (K "move_line_up")
+          ;; Window navigation also from select/visual-line mode (nixvim: <C-hjkl>).
+          ;; smart-window-right! normalizes mode before focusing the sidekick, so
+          ;; C-l works even from visual line mode.
+          (C-h ":smart-window-left!")
+          (C-j ":smart-window-down!")
+          (C-k ":smart-window-up!")
+          (C-l ":smart-window-right!")
           (space
             (a (v ":sidekick-send-selection!")
                (p ":sidekick-prompt-picker!"))
