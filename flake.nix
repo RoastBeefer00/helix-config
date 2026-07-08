@@ -137,7 +137,16 @@
           done
 
           install_item "$SRC/cogs"   "$DEST/cogs"
-          install_item "$SRC/themes" "$DEST/themes"
+
+          # Themes: install the `default` variant set at the TOP level of the
+          # themes dir. Helix loads themes by filename and does NOT recurse into
+          # subdirectories, so a file under themes/default/ is never found by
+          # name — the built-in theme (without our typed inlay-hint scopes) wins.
+          mkdir -p "$DEST/themes"
+          for tfile in "$SRC/themes/default"/*.toml; do
+            [ -f "$tfile" ] || continue
+            install_item "$tfile" "$DEST/themes/$(basename "$tfile")"
+          done
 
           # Tree-sitter query overrides (rstml highlights + Rust injection rule).
           mkdir -p "$DEST/runtime/queries"
