@@ -150,10 +150,11 @@
             done
           done
 
-          # Compile any grammars not shipped with the helix binary.
+          # Fetch and compile grammars not shipped with the helix binary.
           echo ""
           echo "==> Building custom tree-sitter grammars..."
-          hx --grammar build rstml 2>&1 | sed 's/^/    /'
+          hx --grammar fetch rstml 2>&1 | sed 's/^/    /'
+          hx --grammar build rstml 2>&1 | grep -v "Failed to read directory" | sed 's/^/    /'
 
           mkdir -p "$DEST/steel-pty"
           install_item "$SRC/steel-pty/term.scm" "$DEST/steel-pty/term.scm"
