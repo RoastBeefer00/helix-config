@@ -109,19 +109,6 @@
 (line_comment) @comment.line
 (block_comment) @comment.block
 
-(line_comment
-  (outer_doc_comment_marker "/" @comment.line.documentation)
-  (doc_comment)) @comment.line.documentation
-(line_comment
-  (inner_doc_comment_marker "!" @comment.line.documentation)
-  (doc_comment)) @comment.line.documentation
-(block_comment
-  (outer_doc_comment_marker) @comment.block.documentation
-  (doc_comment) "*/" @comment.block.documentation) @comment.block.documentation
-(block_comment
-  (inner_doc_comment_marker) @comment.block.documentation
-  (doc_comment) "*/" @comment.block.documentation) @comment.block.documentation
-
 (self) @variable.builtin
 
 (field_initializer (field_identifier) @variable.other.member)
