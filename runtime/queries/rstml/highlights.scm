@@ -324,7 +324,9 @@
 (close_tag name: (node_identifier (identifier) @tag))
 (self_closing_element_node name: (node_identifier (identifier) @tag))
 
-(node_attribute name: (node_identifier (identifier) @tag.attribute))
+; Attribute names use @attribute (distinct from @tag) to match helix's HTML
+; highlighting — otherwise @tag.attribute falls back to @tag (same color).
+(node_attribute name: (node_identifier (identifier) @attribute))
 
 (node_attribute value: (rust_expression (string_literal) @string))
 (node_attribute value: (rust_expression (raw_string_literal) @string))
