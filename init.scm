@@ -14,6 +14,9 @@
 (require "sidekick.hx/sidekick.scm")
 (require "surround.hx/surround.scm")
 (set-surround-keybindings!)
+(require "crates.hx/crates.scm")
+(enable-crates-auto!)
+(require "showkeys/showkeys.scm")
 (set-sidekick-backend! 'pty)
 
 ;; Override: C-l focuses the sidekick panel when at the right edge instead of
