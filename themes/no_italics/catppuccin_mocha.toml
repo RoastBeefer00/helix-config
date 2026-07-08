@@ -87,8 +87,6 @@
 "ui.virtual.ruler" = { bg = "surface0" }
 "ui.virtual.indent-guide" = "surface0"
 "ui.virtual.inlay-hint" = { fg = "surface1", bg = "mantle" }
-"ui.virtual.inlay-hint.type" = { fg = "green", bg = "mantle" }
-"ui.virtual.inlay-hint.parameter" = { fg = "peach", bg = "mantle" }
 
 "ui.selection" = { bg = "surface1" }
 
