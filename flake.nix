@@ -159,15 +159,25 @@
             done
           done
 
-          # Clone rstml grammar source then build. hx --grammar fetch/build always
-          # processes all grammars; we clone the source manually so only rstml
-          # needs to be present, then filter the build output.
+          # Build the rstml grammar. The helix binary bundles every grammar
+          # EXCEPT rstml, so the user runtime grammars dir should contain only
+          # rstml.so. A previous `hx --grammar fetch/build` (which ignores its
+          # argument and processes ALL grammars) can leave newer, mismatched
+          # grammars here that shadow the bundled ones and break highlighting
+          # (e.g. svelte: invalid node type "script_element"). Clean everything
+          # but rstml, then build — with only rstml's source present, the
+          # arg-less `hx --grammar build` compiles just rstml.
           echo ""
           echo "==> Building rstml tree-sitter grammar..."
-          RSTML_SRC="$DEST/runtime/grammars/sources/rstml"
+          GRAMMARS="$DEST/runtime/grammars"
+          SOURCES="$GRAMMARS/sources"
+          mkdir -p "$SOURCES"
+          find "$GRAMMARS" -maxdepth 1 -type f -name '*.so' ! -name 'rstml.so' -delete 2>/dev/null || true
+          find "$SOURCES" -maxdepth 1 -mindepth 1 ! -name 'rstml' -exec rm -rf {} + 2>/dev/null || true
+
+          RSTML_SRC="$SOURCES/rstml"
           RSTML_REV="2d4c2bc84a40d99a4e099ff7c6cf7f1bc5dc7806"
           if [ ! -d "$RSTML_SRC/.git" ]; then
-            mkdir -p "$(dirname "$RSTML_SRC")"
             git clone --filter=blob:none https://github.com/rayliwell/tree-sitter-rstml "$RSTML_SRC" 2>&1 | sed 's/^/    /'
           fi
           (cd "$RSTML_SRC" && git checkout "$RSTML_REV" 2>&1 | sed 's/^/    /')
