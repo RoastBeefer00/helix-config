@@ -16,6 +16,8 @@
 (set-surround-keybindings!)
 (require "crates.hx/crates.scm")
 (enable-crates-auto!)
+(require "html.hx/html.scm")
+(enable-html-auto-close!)
 (require "showkeys/showkeys.scm")
 (set-sidekick-backend! 'pty)
 
