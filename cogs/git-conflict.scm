@@ -1,4 +1,3 @@
-;;@doc
 ;; Git merge-conflict resolver.
 ;;
 ;; Operates directly on the currently focused document containing standard git
