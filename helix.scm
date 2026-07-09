@@ -15,6 +15,7 @@
 (require "cogs/file-tree.scm")
 (require "cogs/recentf.scm")
 (require "cogs/git-status-picker.scm")
+(require "cogs/git-conflict.scm")
 (require "cogs/scheme-indent.scm")
 (require "cogs/helix-ext.scm")
 ; (require "cogs/themes/spacemacs.scm")
