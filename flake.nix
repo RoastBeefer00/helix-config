@@ -186,6 +186,28 @@
           mkdir -p "$DEST/steel-pty"
           install_item "$SRC/steel-pty/term.scm" "$DEST/steel-pty/term.scm"
 
+          # Wipe cached plugin clones so forge re-pulls the latest pushed code.
+          # forge reuses whatever is already in cog-sources/, which is why stale
+          # plugin code otherwise lingers until manually deleted. Keep the two
+          # dylib-bearing plugins (and native/) so we don't recompile Rust every
+          # time — those rarely change.
+          STEEL_HOME="''${STEEL_HOME:-$HOME/.local/share/steel}"
+          if [ -d "$STEEL_HOME/cog-sources" ]; then
+            echo ""
+            echo "==> Refreshing plugin sources (dropping cached clones)..."
+            for d in "$STEEL_HOME/cog-sources"/*/; do
+              [ -d "$d" ] || continue
+              name=$(basename "$d")
+              case "$name" in
+                steel-pty | helix-file-watcher) : ;;
+                *)
+                  rm -rf "$d" "$STEEL_HOME/cogs/$name"
+                  echo "    refreshed: $name"
+                  ;;
+              esac
+            done
+          fi
+
           echo ""
           echo "==> Running forge install (installs plugins + compiles dylibs)..."
           echo "    Plugins go to ~/.local/share/steel/cogs/"
