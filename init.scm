@@ -14,6 +14,11 @@
 (require "sidekick.hx/sidekick.scm")
 (require "surround.hx/surround.scm")
 (set-surround-keybindings!)
+(require "crates.hx/crates.scm")
+(enable-crates-auto!)
+(require "html.hx/html.scm")
+(enable-html-auto-close!)
+(require "showkeys/showkeys.scm")
 (set-sidekick-backend! 'pty)
 
 ;; Override: C-l focuses the sidekick panel when at the right edge instead of
@@ -140,6 +145,13 @@
         (select
           (J "move_line_down")
           (K "move_line_up")
+          ;; Window navigation also from select/visual-line mode (nixvim: <C-hjkl>).
+          ;; smart-window-right! normalizes mode before focusing the sidekick, so
+          ;; C-l works even from visual line mode.
+          (C-h ":smart-window-left!")
+          (C-j ":smart-window-down!")
+          (C-k ":smart-window-up!")
+          (C-l ":smart-window-right!")
           (space
             (a (v ":sidekick-send-selection!")
                (p ":sidekick-prompt-picker!"))

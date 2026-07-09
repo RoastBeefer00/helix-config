@@ -31,3 +31,16 @@ config = { markdown.preview.auto = true, markdown.preview.browser = "firefox" }
 [[language]]
 name = "markdown"
 language-servers = ["marksman", "mdpls"]
+
+[[language]]
+name = "rstml"
+scope = "source.rstml"
+injection-regex = "rstml"
+file-types = []
+indent = { tab-width = 2, unit = "  " }
+block-comment-tokens = { start = "<!--", end = "-->" }
+grammar = "rstml"
+
+[[grammar]]
+name = "rstml"
+source = { git = "https://github.com/rayliwell/tree-sitter-rstml", rev = "2d4c2bc84a40d99a4e099ff7c6cf7f1bc5dc7806", subpath = "rstml" }
