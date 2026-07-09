@@ -52,6 +52,17 @@
          recentf-snapshot
          ;; cogs/git-status-picker.scm
          create-gs-picker
+         ;; cogs/git-conflict.scm
+         conflict-highlight
+         conflict-clear
+         conflict-next
+         conflict-prev
+         conflict-accept-ours
+         conflict-accept-theirs
+         conflict-accept-both
+         conflict-accept-none
+         conflict-list
+         conflict-files
          ;; helix-lazygit/lazygit.scm
          ;; lazygit
          ;; close-lazygit
