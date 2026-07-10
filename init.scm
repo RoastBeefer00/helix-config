@@ -125,7 +125,7 @@
                   (p ":conflict-prev")
                   (o ":conflict-accept-ours")
                   (t ":conflict-accept-theirs")
-                  (b ":conflict-accept-both")
+                  (a ":conflict-accept-both")
                   (d ":conflict-accept-none")
                   (h ":conflict-highlight")
                   (x ":conflict-clear")

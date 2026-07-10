@@ -326,9 +326,16 @@
                  " <> "
                  (Conflict-theirs-label c)))
 
+;; Callback for the conflict-list/conflict-files pickers: enter diff view for
+;; whatever conflict is now under the cursor. Delayed so it runs after the
+;; picker component has finished closing.
+(define (enter-diff-view-after-select)
+  (enqueue-thread-local-callback-with-delay 10 conflict-diff))
+
 ;;@doc
 ;; Open a native picker over the conflicts in the current buffer. The preview
-;; shows the file scrolled to the conflict, and selecting one jumps to it.
+;; shows the file scrolled to the conflict; selecting one jumps to it and
+;; opens the ours/working/theirs diff view (unless already in diff view).
 (define (conflict-list)
   (define rope (current-doc-rope))
   (define conflicts (parse-conflicts rope))
@@ -340,7 +347,8 @@
       (map conflict->label conflicts)
       (map (lambda (c) path) conflicts)
       (map Conflict-start-line conflicts)
-      (map Conflict-end-line conflicts)))))
+      (map Conflict-end-line conflicts)
+      enter-diff-view-after-select))))
 
 ;; Capture stdout of a git command (run in `dir`, or the editor cwd when #false).
 ;; Returns "" on failure instead of raising.
@@ -357,7 +365,8 @@
 
 ;;@doc
 ;; Open a picker over every file in the repo with unresolved conflicts, previewing
-;; the whole file; selecting one opens it and highlights its conflicts.
+;; the whole file; selecting one opens it and enters the ours/working/theirs diff
+;; view (unless already in diff view).
 (define (conflict-files)
   (define files
     (filter (lambda (s) (not (equal? s "")))
@@ -367,9 +376,7 @@
     (push-component!
      ;; #%exp-picker treats items as file paths, previews the whole file, and
      ;; opens the selection itself; the callback (no args) runs post-open.
-     (#%exp-picker
-      files
-      (lambda () (enqueue-thread-local-callback-with-delay 10 refresh-conflict-highlights))))))
+     (#%exp-picker files enter-diff-view-after-select))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 3-way split view ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -377,8 +384,12 @@
 (define NS-DIFF "git-conflict-diff")
 
 ;; Paths of the side buffers opened by the last `conflict-diff`, so
-;; `conflict-diff-close` can tear them down.
+;; `conflict-diff-close` can tear them down. A non-empty box is also the
+;; "currently in diff view" signal used by `conflict-diff` to no-op on repeat.
 (define *conflict-diff-files* (box '()))
+
+(define (in-diff-view?)
+  (not (null? (unbox *conflict-diff-files*))))
 
 ;; Absolute path of the currently focused file, or #false for a scratch buffer.
 (define (current-file-path)
@@ -458,9 +469,11 @@
 ;; ours (HEAD) | working file | theirs (incoming), with lines that differ from
 ;; the merge base highlighted in the ours/theirs panes. The working (center)
 ;; pane keeps focus, so the :conflict-accept-* commands still apply there.
+;; No-ops if already in diff view — use :conflict-diff-close first to switch files.
 (define (conflict-diff)
   (define path (current-file-path))
   (cond
+    [(in-diff-view?) void]
     [(not path) "conflict-diff: current buffer has no file"]
     [else
      (define dir (path-parent path))
