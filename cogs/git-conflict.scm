@@ -381,6 +381,9 @@
   (ensure-dir root)
   (ensure-dir dir)
   (define file (string-append dir "/" basename))
+  ;; open-output-file errors if the file exists (it won't truncate), so a repeat
+  ;; diff of the same file would fail with "io: file exists" — remove it first.
+  (when (path-exists? file) (delete-file! file))
   (define port (open-output-file file))
   (write-string content port)
   (close-output-port port)
