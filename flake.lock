@@ -10,11 +10,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1783695884,
-        "narHash": "sha256-0oqc3acp1gIlBeZvJujNYgSnUwx0pZuj4n8juju4AMU=",
+        "lastModified": 1783700021,
+        "narHash": "sha256-nstSrDgZyVdmbxsxiDGbiYqbyY4TyhUSS/YWn3CfDeg=",
         "owner": "RoastBeefer00",
         "repo": "evilhelix",
-        "rev": "60d384a6a0e97a4be8f3006e40a634cde3fb2fc4",
+        "rev": "7b573da510358ec21b47dc4011b26cbf03c92678",
         "type": "github"
       },
       "original": {
