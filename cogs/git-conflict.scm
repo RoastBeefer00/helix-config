@@ -34,7 +34,8 @@
          conflict-accept-both
          conflict-accept-none
          conflict-list
-         conflict-files)
+         conflict-files
+         conflict-diff)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Configuration ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -306,11 +307,18 @@
                        (lambda (c) (goto-char! (Conflict-start-char c)))
                        #:value-formatter conflict->label))))
 
-;; Capture stdout of a git invocation as a string.
-(define (git-output args)
+;; Capture stdout of a git command (run in `dir`, or the editor cwd when #false).
+;; Returns "" on failure instead of raising.
+(define (git-capture dir args)
   (define cmd (command "git" args))
+  (when dir (set-current-dir! cmd dir))
   (set-piped-stdout! cmd)
-  (Ok->value (wait->stdout (Ok->value (spawn-process cmd)))))
+  (with-handler (lambda (_) "")
+                (Ok->value (wait->stdout (Ok->value (spawn-process cmd))))))
+
+;; Capture stdout of a git invocation as a string (editor cwd).
+(define (git-output args)
+  (git-capture #false args))
 
 ;;@doc
 ;; Open a picker over every file in the repo with unresolved conflicts; selecting
@@ -326,3 +334,112 @@
                        (lambda (file)
                          (helix.open file)
                          (enqueue-thread-local-callback-with-delay 10 refresh-conflict-highlights))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 3-way split view ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; Namespace for the diff-view line highlights (reuses OURS-SCOPE / THEIRS-SCOPE).
+(define NS-DIFF "git-conflict-diff")
+
+;; Absolute path of the currently focused file, or #false for a scratch buffer.
+(define (current-file-path)
+  (define p (editor-document->path (editor->doc-id (editor-focus))))
+  (and p (to-string p)))
+
+(define (path-parts p) (split-many p "/"))
+(define (path-basename p) (list-last (path-parts p)))
+(define (join-slash parts)
+  (cond
+    [(null? parts) ""]
+    [(null? (cdr parts)) (car parts)]
+    [else (string-append (car parts) "/" (join-slash (cdr parts)))]))
+(define (path-parent p)
+  (define but-last (reverse (cdr (reverse (path-parts p)))))
+  (if (null? but-last) "." (join-slash but-last)))
+
+;; Content of a merge stage (1=base, 2=ours, 3=theirs) for the given file.
+;; `:N:./name` resolves the path relative to the file's own directory.
+(define (git-stage dir basename stage)
+  (git-capture dir (list "show" (string-append ":" (number->string stage) ":./" basename))))
+
+(define (ensure-dir d)
+  (unless (path-exists? d) (create-directory! d)))
+
+;; Write `content` to /tmp/hx-conflict/<side>/<basename> (extension preserved so
+;; the buffer gets the right language) and return the path.
+(define (write-side-file side basename content)
+  (define root "/tmp/hx-conflict")
+  (define dir (string-append root "/" side))
+  (ensure-dir root)
+  (ensure-dir dir)
+  (define file (string-append dir "/" basename))
+  (define port (open-output-file file))
+  (write-string content port)
+  (close-output-port port)
+  file)
+
+;; 1-based line numbers on the "+" side of a `git diff -U0` hunk header
+;; (e.g. "@@ -1,0 +2,3 @@" -> (2 3 4)).
+(define (hunk-plus-lines header)
+  (define plus (find-first (lambda (t) (starts-with? t "+")) (split-many header " ")))
+  (if (not plus)
+      '()
+      (let* ([spec (substring plus 1 (string-length plus))]
+             [parts (split-many spec ",")]
+             [start (string->number (car parts))]
+             [count (if (null? (cdr parts)) 1 (string->number (cadr parts)))])
+        (if (or (not start) (not count) (= count 0))
+            '()
+            (map (lambda (k) (+ start k)) (range 0 count))))))
+
+;; Lines in `other-file` that differ from `base-file`, via git's -U0 diff.
+(define (changed-lines base-file other-file)
+  (define out (git-capture #false (list "diff" "--no-index" "-U0" "--" base-file other-file)))
+  (flatten (map hunk-plus-lines
+                (filter (lambda (l) (starts-with? l "@@")) (split-many out "\n")))))
+
+;; Highlight the given 1-based line numbers on the CURRENT document.
+(define (highlight-lines linenos scope)
+  (define rope (current-doc-rope))
+  (define n (rope-len-lines rope))
+  (set-document-highlights!
+   NS-DIFF
+   (map (lambda (ln)
+          (define i (- ln 1))
+          (cons (rope-line->char rope i)
+                (if (< (+ i 1) n) (rope-line->char rope (+ i 1)) (rope-len-chars rope))))
+        (filter (lambda (ln) (and (>= ln 1) (<= ln n))) linenos))
+   scope))
+
+;;@doc
+;; Open a 3-way split for the conflicted file under the cursor:
+;; ours (HEAD) | working file | theirs (incoming), with lines that differ from
+;; the merge base highlighted in the ours/theirs panes. The working (center)
+;; pane keeps focus, so the :conflict-accept-* commands still apply there.
+(define (conflict-diff)
+  (define path (current-file-path))
+  (cond
+    [(not path) "conflict-diff: current buffer has no file"]
+    [else
+     (define dir (path-parent path))
+     (define name (path-basename path))
+     (define ours (git-stage dir name 2))
+     (define theirs (git-stage dir name 3))
+     (define base (git-stage dir name 1))
+     (if (and (equal? ours "") (equal? theirs ""))
+         "conflict-diff: no merge-conflict stages for this file"
+         (let ([ours-file (write-side-file "ours" name ours)]
+               [theirs-file (write-side-file "theirs" name theirs)]
+               [base-file (write-side-file "base" name base)])
+           (define ours-changed (changed-lines base-file ours-file))
+           (define theirs-changed (changed-lines base-file theirs-file))
+           ;; Build ours | working | theirs, ending with focus on working.
+           (helix.vsplit-new)
+           (helix.open ours-file)
+           (highlight-lines ours-changed OURS-SCOPE)
+           (helix.static.swap_view_left)
+           (helix.static.jump_view_right)
+           (helix.vsplit-new)
+           (helix.open theirs-file)
+           (highlight-lines theirs-changed THEIRS-SCOPE)
+           (helix.static.jump_view_left)
+           void))]))

@@ -63,6 +63,7 @@
          conflict-accept-none
          conflict-list
          conflict-files
+         conflict-diff
          ;; helix-lazygit/lazygit.scm
          ;; lazygit
          ;; close-lazygit
