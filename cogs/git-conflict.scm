@@ -168,9 +168,29 @@
   (cons (rope-line->char rope (Conflict-sep-line c))
         (+ (Conflict-last-char c) 1)))
 
+;; usize doc-ids of buffers with conflict highlighting active. A buffer stays
+;; tracked until `conflict-clear`, so the document-changed hook keeps
+;; re-highlighting it (e.g. after an undo restores a resolved conflict — script
+;; highlights are not part of the undo history and would otherwise be lost).
+(define *conflict-active-docs* (box '()))
+
+(define (current-doc-uid)
+  (doc-id->usize (editor->doc-id (editor-focus))))
+
+(define (mark-conflict-active!)
+  (define uid (current-doc-uid))
+  (unless (member uid (unbox *conflict-active-docs*))
+    (set-box! *conflict-active-docs* (cons uid (unbox *conflict-active-docs*)))))
+
+(define (unmark-conflict-active!)
+  (define uid (current-doc-uid))
+  (set-box! *conflict-active-docs*
+            (filter (lambda (x) (not (equal? x uid))) (unbox *conflict-active-docs*))))
+
 ;; Recompute and apply overlay highlights for every conflict in the buffer.
 ;; Clears the highlights entirely when no conflicts remain.
 (define (refresh-conflict-highlights)
+  (mark-conflict-active!)
   (define rope (current-doc-rope))
   (define conflicts (parse-conflicts rope))
   (if (null? conflicts)
@@ -281,10 +301,20 @@
   (refresh-conflict-highlights))
 
 ;;@doc
-;; Remove conflict highlighting from the current buffer.
+;; Remove conflict highlighting from the current buffer and stop tracking it.
 (define (conflict-clear)
+  (unmark-conflict-active!)
   (clear-document-highlights! NS-OURS)
   (clear-document-highlights! NS-THEIRS))
+
+;; Re-apply conflict highlights after any edit to a tracked buffer. Undo/redo
+;; restore document text but not script highlights, so without this an undo that
+;; brings a resolved conflict back would leave it unhighlighted.
+(define (conflict-doc-changed-hook doc-id old-text)
+  (when (member (current-doc-uid) (unbox *conflict-active-docs*))
+    (refresh-conflict-highlights)))
+
+(register-hook 'document-changed conflict-doc-changed-hook)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Pickers ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
