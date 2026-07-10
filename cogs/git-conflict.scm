@@ -23,9 +23,6 @@
 (require-builtin helix/core/text)
 (require-builtin steel/process)
 
-;; Preview-capable picker (native pickers can't render an arbitrary text preview).
-(require (only-in "picker.scm" picker-selection))
-
 (provide conflict-highlight
          conflict-clear
          conflict-next
@@ -329,57 +326,21 @@
                  " <> "
                  (Conflict-theirs-label c)))
 
-;; Strip a trailing newline (handles CRLF) from a line string.
-(define (strip-eol s)
-  (define n (string-length s))
-  (cond
-    [(and (>= n 2) (equal? (substring s (- n 2) n) "\r\n")) (substring s 0 (- n 2))]
-    [(and (>= n 1) (equal? (substring s (- n 1) n) "\n")) (substring s 0 (- n 1))]
-    [else s]))
-
-;; The raw lines of a conflict block (markers included), for the picker preview.
-(define (conflict-section-lines rope c)
-  (map (lambda (i) (strip-eol (rope->string (rope->line rope i))))
-       (range (Conflict-start-line c) (+ (Conflict-end-line c) 1))))
-
-;; Render a list of strings top-down into the preview `rect`, clipped to it.
-(define (render-preview-lines frame rect lines)
-  (define x (+ 1 (area-x rect)))
-  (define y0 (+ 1 (area-y rect)))
-  (define max-rows (max 0 (- (area-height rect) 2)))
-  (define max-cols (max 1 (- (area-width rect) 2)))
-  (let loop ([ls lines] [row 0])
-    (when (and (not (null? ls)) (< row max-rows))
-      (define s (car ls))
-      (frame-set-string! frame
-                         x
-                         (+ y0 row)
-                         (if (> (string-length s) max-cols) (substring s 0 max-cols) s)
-                         (style))
-      (loop (cdr ls) (+ row 1)))))
-
 ;;@doc
-;; Open a picker over the conflicts in the current buffer, previewing each
-;; conflict's text on the right; selecting one jumps to it.
+;; Open a native picker over the conflicts in the current buffer. The preview
+;; shows the file scrolled to the conflict, and selecting one jumps to it.
 (define (conflict-list)
   (define rope (current-doc-rope))
   (define conflicts (parse-conflicts rope))
-  (unless (null? conflicts)
+  (define path (current-file-path))
+  (when (and path (not (null? conflicts)))
     (refresh-conflict-highlights)
-    (define labels (map conflict->label conflicts))
-    (define by-label (map (lambda (c) (cons (conflict->label c) c)) conflicts))
-    (define lines-by-label
-      (map (lambda (c) (cons (conflict->label c) (conflict-section-lines rope c))) conflicts))
     (push-component!
-     (picker-selection
-      labels
-      (lambda (label)
-        (define entry (assoc label by-label))
-        (when entry (goto-char! (Conflict-start-char (cdr entry)))))
-      #:preview-function
-      (lambda (state label rect frame)
-        (define entry (assoc label lines-by-label))
-        (render-preview-lines frame rect (if entry (cdr entry) '())))))))
+     (#%location-picker
+      (map conflict->label conflicts)
+      (map (lambda (c) path) conflicts)
+      (map Conflict-start-line conflicts)
+      (map Conflict-end-line conflicts)))))
 
 ;; Capture stdout of a git command (run in `dir`, or the editor cwd when #false).
 ;; Returns "" on failure instead of raising.
