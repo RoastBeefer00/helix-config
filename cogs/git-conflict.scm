@@ -23,8 +23,6 @@
 (require-builtin helix/core/text)
 (require-builtin steel/process)
 
-(require (only-in "component.scm" cursor-selection))
-
 (provide conflict-highlight
          conflict-clear
          conflict-next
@@ -35,7 +33,8 @@
          conflict-accept-none
          conflict-list
          conflict-files
-         conflict-diff)
+         conflict-diff
+         conflict-diff-close)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Configuration ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -232,8 +231,10 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Resolution ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; Select the inclusive char span [start, end] and replace it with `str`.
-;; Mirrors surround.hx's `replace-char-range!`.
+;; Select the half-open char span [start, end) and replace it with `str`.
+;; Helix ranges are half-open (`range->to` is exclusive), so `end` must be one
+;; past the last char to replace — otherwise the final char (here the newline
+;; after `>>>>>>>`) is left behind, leaving a stray blank line.
 (define (replace-char-range! start end str)
   (helix.static.set-current-selection-object!
    (helix.static.range->selection (helix.static.range start end)))
@@ -248,7 +249,7 @@
   (when target
     (goto-char! (Conflict-start-char target))
     (replace-char-range! (Conflict-start-char target)
-                         (Conflict-last-char target)
+                         (+ (Conflict-last-char target) 1)
                          (resolved rope target))
     (refresh-conflict-highlights)))
 
@@ -302,10 +303,13 @@
   (define conflicts (parse-conflicts rope))
   (unless (null? conflicts)
     (refresh-conflict-highlights)
+    (define labeled (map (lambda (c) (cons (conflict->label c) c)) conflicts))
     (push-component!
-     (cursor-selection conflicts
-                       (lambda (c) (goto-char! (Conflict-start-char c)))
-                       #:value-formatter conflict->label))))
+     (#%string-picker
+      (map car labeled)
+      (lambda (selected)
+        (define entry (assoc selected labeled))
+        (when entry (goto-char! (Conflict-start-char (cdr entry)))))))))
 
 ;; Capture stdout of a git command (run in `dir`, or the editor cwd when #false).
 ;; Returns "" on failure instead of raising.
@@ -330,15 +334,20 @@
                  (split-many (git-output (list "diff" "--name-only" "--diff-filter=U")) "\n"))))
   (unless (null? files)
     (push-component!
-     (cursor-selection files
-                       (lambda (file)
-                         (helix.open file)
-                         (enqueue-thread-local-callback-with-delay 10 refresh-conflict-highlights))))))
+     (#%string-picker
+      files
+      (lambda (file)
+        (helix.open file)
+        (enqueue-thread-local-callback-with-delay 10 refresh-conflict-highlights))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 3-way split view ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; Namespace for the diff-view line highlights (reuses OURS-SCOPE / THEIRS-SCOPE).
 (define NS-DIFF "git-conflict-diff")
+
+;; Paths of the side buffers opened by the last `conflict-diff`, so
+;; `conflict-diff-close` can tear them down.
+(define *conflict-diff-files* (box '()))
 
 ;; Absolute path of the currently focused file, or #false for a scratch buffer.
 (define (current-file-path)
@@ -432,6 +441,7 @@
                [base-file (write-side-file "base" name base)])
            (define ours-changed (changed-lines base-file ours-file))
            (define theirs-changed (changed-lines base-file theirs-file))
+           (set-box! *conflict-diff-files* (list ours-file theirs-file))
            ;; Build ours | working | theirs, ending with focus on working.
            (helix.vsplit-new)
            (helix.open ours-file)
@@ -442,4 +452,16 @@
            (helix.open theirs-file)
            (highlight-lines theirs-changed THEIRS-SCOPE)
            (helix.static.jump_view_left)
+           ;; Highlight the conflict regions in the (now focused) working buffer.
+           (refresh-conflict-highlights)
            void))]))
+
+;;@doc
+;; Close the ours/theirs side buffers opened by `conflict-diff`, leaving the
+;; working file.
+(define (conflict-diff-close)
+  (for-each (lambda (f)
+              (helix.open f)
+              (helix.buffer-close!))
+            (unbox *conflict-diff-files*))
+  (set-box! *conflict-diff-files* '()))
