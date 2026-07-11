@@ -15,7 +15,6 @@
 (require "cogs/file-tree.scm")
 (require "cogs/recentf.scm")
 (require "cogs/git-status-picker.scm")
-(require "cogs/git-conflict.scm")
 (require "cogs/scheme-indent.scm")
 (require "cogs/helix-ext.scm")
 ; (require "cogs/themes/spacemacs.scm")
@@ -52,19 +51,6 @@
          recentf-snapshot
          ;; cogs/git-status-picker.scm
          create-gs-picker
-         ;; cogs/git-conflict.scm
-         conflict-highlight
-         conflict-clear
-         conflict-next
-         conflict-prev
-         conflict-accept-ours
-         conflict-accept-theirs
-         conflict-accept-both
-         conflict-accept-none
-         conflict-list
-         conflict-files
-         conflict-diff
-         conflict-diff-close
          ;; helix-lazygit/lazygit.scm
          ;; lazygit
          ;; close-lazygit

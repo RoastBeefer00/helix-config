@@ -10,6 +10,7 @@
     (#:name surround.hx #:git-url "https://github.com/RoastBeefer00/surround.hx.git")
     (#:name html.hx #:git-url "https://github.com/RoastBeefer00/html.hx.git")
     (#:name crates.hx #:git-url "https://github.com/RoastBeefer00/crates.hx.git")
+    (#:name git-conflict.hx #:git-url "https://github.com/RoastBeefer00/git-conflict.hx.git")
     (#:name showkeys #:git-url "https://github.com/HeitorAugustoLN/showkeys.hx.git")
     (#:name fidget.hx #:git-url "https://github.com/RoastBeefer00/fidget.hx.git")
     (#:name notify #:git-url "https://github.com/chuwy/notify.hx.git")

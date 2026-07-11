@@ -48,6 +48,7 @@ helix-setup --force
 |---|---|
 | [`vim.hx`](https://github.com/RoastBeefer00/vim.hx) | Full vim-motion emulation |
 | [`surround.hx`](https://github.com/RoastBeefer00/surround.hx) | Vim surround operations |
+| [`git-conflict.hx`](https://github.com/RoastBeefer00/git-conflict.hx) | Merge conflict resolver + 3-way diff view |
 | [`html.hx`](https://github.com/RoastBeefer00/html.hx) | HTML/JSX tag text objects + auto-close |
 | [`crates.hx`](https://github.com/RoastBeefer00/crates.hx) | Cargo.toml crates.io version hints |
 | [`lazygit.hx`](https://github.com/RoastBeefer00/lazygit.hx) | Lazygit in a floating terminal |
@@ -58,8 +59,6 @@ helix-setup --force
 | [`showkeys`](https://github.com/HeitorAugustoLN/showkeys.hx) | On-screen keypress display (loaded, not auto-enabled) |
 | [`steel-pty`](https://github.com/mattwparas/steel-pty) | PTY + VTE terminal emulator (Rust dylib) |
 | [`helix-file-watcher`](https://github.com/mattwparas/helix-file-watcher) | Background file watcher (Rust dylib) |
-
-The git conflict resolver (`cogs/git-conflict.scm`) lives directly in this repo rather than as a forge plugin.
 
 ## Development
 
