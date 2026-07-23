@@ -137,14 +137,11 @@
                (v ":sidekick-send-selection!")
                (p ":sidekick-prompt-picker!"))
             ;; LazyGit (nixvim: <leader>gg) + merge-conflict resolver (space g c ...)
+            ;; Navigation (]c/[c) and resolution (space c o/t/a/d) are
+            ;; buffer-local, bound only in files with an active conflict -
+            ;; see git-conflict.hx's CONFLICT-KEYMAP.
             (g (g ":lazygit")
-               (c (n ":conflict-next")
-                  (p ":conflict-prev")
-                  (o ":conflict-accept-ours")
-                  (t ":conflict-accept-theirs")
-                  (a ":conflict-accept-both")
-                  (d ":conflict-accept-none")
-                  (h ":conflict-highlight")
+               (c (h ":conflict-highlight")
                   (x ":conflict-clear")
                   (l ":conflict-list")
                   (f ":conflict-files")
