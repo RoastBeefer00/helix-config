@@ -532,13 +532,18 @@
 
 ;;@doc
 ;; Open the file manager for the current file's directory (or the Helix cwd
-;; for an unnamed buffer). If an oil buffer is already open
+;; for an unnamed buffer), or for an explicit directory if one is passed
+;; (e.g. `hx .` calls `(oil ".")` at startup instead of opening the native
+;; file picker - see application.rs). If an oil buffer is already open
 ;; somewhere, switches to that instance and re-renders it for this
 ;; directory instead of opening a new one.
-(define (oil)
-  (define doc-id (editor->doc-id (editor-focus)))
-  (define path (editor-document->path doc-id))
-  (define dir (if path (parent-name path) (get-helix-cwd)))
+(define (oil . args)
+  (define dir
+    (if (pair? args)
+        (car args)
+        (let* ([doc-id (editor->doc-id (editor-focus))]
+               [path (editor-document->path doc-id)])
+          (if path (parent-name path) (get-helix-cwd)))))
   (define target-id
     (if (and *oil-last-doc-id* (editor-doc-exists? *oil-last-doc-id*))
         (begin (editor-switch-action! *oil-last-doc-id* (Action/Replace))
