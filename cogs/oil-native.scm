@@ -39,7 +39,6 @@
          oil-native-close)
 
 (define OIL-NATIVE-TYPE "oil-native")
-(define OIL-NATIVE-BUFFER-NAME "*oil-native*")
 (define OIL-NATIVE-HIGHLIGHT-NS "oil-native-dirs")
 (define OIL-NATIVE-PENDING-NS "oil-native-pending")
 
@@ -63,6 +62,12 @@
 ;; oil-native buffer) before pasting, this no longer matches and the paste
 ;; is treated as plain text, not a copy.
 (define *oil-native-clipboard* #false)
+
+;; Doc-id of the most recently rendered oil-native buffer, or #false. Lets
+;; oil-native (the open command) reuse an already-open instance - switching
+;; to it and re-rendering for whatever directory was just requested - rather
+;; than piling up a new buffer on every invocation.
+(define *oil-native-last-doc-id* #false)
 
 (define (oil-native-get-state doc-id)
   (define key (doc-id->usize doc-id))
@@ -125,21 +130,45 @@
 ;; language-specific ones are the common devicons codepoints), but if
 ;; anything renders as a box or the wrong shape in your terminal, this table
 ;; is the only place that needs fixing.
-(define OIL-NATIVE-ICON-DIR "")
-(define OIL-NATIVE-ICON-FILE "")
+(define OIL-NATIVE-ICON-DIR (cons "" "info"))
+(define OIL-NATIVE-ICON-FILE (cons "" "ui.text"))
 (define OIL-NATIVE-ICON-TABLE
-  (hash "rs" "" "go" "" "py" "" "rb" "" "php" ""
-        "js" "" "jsx" "" "ts" "" "tsx" ""
-        "c" "" "h" "" "cpp" "" "hpp" "" "java" ""
-        "md" "" "json" "" "toml" "" "yaml" "" "yml" ""
-        "lock" "" "sh" "" "html" "" "css" ""))
+  (hash "rs"   (cons "" "keyword")
+        "go"   (cons "" "type")
+        "py"   (cons "" "function")
+        "rb"   (cons "" "constant")
+        "php"  (cons "" "variable")
+        "js"   (cons "" "attribute")
+        "jsx"  (cons "" "attribute")
+        "ts"   (cons "" "type.builtin")
+        "tsx"  (cons "" "type.builtin")
+        "c"    (cons "" "operator")
+        "h"    (cons "" "operator")
+        "cpp"  (cons "" "namespace")
+        "hpp"  (cons "" "namespace")
+        "java" (cons "" "keyword.control")
+        "md"   (cons "" "markup.heading")
+        "json" (cons "" "string")
+        "toml" (cons "" "special")
+        "yaml" (cons "" "special")
+        "yml"  (cons "" "special")
+        "lock" (cons "" "warning")
+        "sh"   (cons "" "function.builtin")
+        "html" (cons "" "tag")
+        "css"  (cons "" "constructor")))
 
 ;; The substring after the last "." in `name`, or #false if there isn't one.
 (define (oil-native-extension name)
   (define parts (split-many name "."))
   (if (< (length parts) 2) #false (list-ref parts (- (length parts) 1))))
 
-(define (oil-native-icon-for name)
+;; (icon . scope) for `name`. The scope is a best-effort, real-and-confirmed
+;; Helix theme scope loosely fitting the language's usual brand color (e.g.
+;; "keyword" for Rust, often orange/red-ish) - Helix doesn't expose raw RGB
+;; to plugins, only theme scopes, so exact brand-color matching isn't
+;; possible; this aims for "visually distinct and roughly fitting; exact
+;; hue depends on your theme," not pixel-perfect devicons parity.
+(define (oil-native-icon-and-scope-for name)
   (if (oil-native-dir-entry? name)
       OIL-NATIVE-ICON-DIR
       (let ([ext (oil-native-extension (trim-end-matches name (path-separator)))])
@@ -151,60 +180,40 @@
 ;; Listing / rendering
 ;; ---------------------------------------------------------------------
 
+;; Directories (alphabetical) first, then files (alphabetical) - matches the
+;; usual file-manager convention. "../" is not part of this list; it's
+;; prepended separately, always first regardless.
 (define (oil-native-read-entries dir)
   (define raw (with-handler
                (lambda (err) (error (string-append "oil-native: cannot read directory: "
                                                     (error-object-message err))))
                (read-dir dir)))
-  (map (lambda (full)
-         (define base (oil-native-basename full))
-         (if (is-file? full) base (string-append base (path-separator))))
-       raw))
+  (define named
+    (map (lambda (full)
+           (define base (oil-native-basename full))
+           (if (is-file? full) base (string-append base (path-separator))))
+         raw))
+  (define dirs (sort (filter oil-native-dir-entry? named) string<?))
+  (define files (sort (filter (lambda (n) (not (oil-native-dir-entry? n))) named) string<?))
+  (append dirs files))
 
-;; Header (directory path) is line 1 and is never treated as an entry.
-;; "../" is always the first entry so the parent directory is reachable both
-;; by editing the buffer (rare) and via oil-native-up (normal case).
-(define (oil-native-listing-text dir entries)
-  (string-append dir "\n" (string-join (cons "../" entries) "\n")))
-
-;; Char ranges for every directory-looking line, to hand to
-;; set-document-highlights!. Computed directly while walking the same list
-;; used to build the text above, rather than re-parsing the buffer - simpler
-;; and always in sync with what was just written.
-(define (oil-native-dir-highlight-ranges dir entries)
-  (define start0 (+ (string-length dir) 1)) ; skip "dir\n"
-  (let loop ([offset start0] [remaining (cons "../" entries)] [ranges '()])
-    (cond
-      [(null? remaining) (reverse ranges)]
-      [else
-       (let* ([name (car remaining)]
-              [end (+ offset (string-length name))]
-              [next (if (oil-native-dir-entry? name) (cons (cons offset end) ranges) ranges)])
-         (loop (+ end 1) (cdr remaining) next))])))
+;; No header line - the directory is shown as the buffer's name (status
+;; line / bufferline) instead, via set-scratch-buffer-name! in render!
+;; below, so the buffer's actual text is only ever real entries. "../" is
+;; always first, so the parent directory is reachable both by editing the
+;; buffer (rare) and via oil-native-up (normal case).
+(define (oil-native-listing-text entries)
+  (string-join (cons "../" entries) "\n"))
 
 ;; Icons are virtual text (add-scoped-inlay-hint), never real buffer
 ;; characters - critical, since real characters would show up in
 ;; oil-native-parse-buffer and corrupt the diff. Each call returns a
-;; (first-line . last-line) id, same shape remove-inlay-hint-by-id expects;
-;; tracked per-doc-id in state so navigating (which re-renders in place)
-;; clears the previous directory's icons before drawing the new one's.
+;; (first-line . last-line) id, same shape remove-inlay-hint-by-id expects.
 (define (oil-native-clear-icons! doc-id)
   (define st (oil-native-get-state doc-id))
   (when (and st (hash-contains? st 'icon-ids))
     (for-each (lambda (id) (remove-inlay-hint-by-id (list-ref id 0) (list-ref id 1)))
               (hash-get st 'icon-ids))))
-
-(define (oil-native-apply-icons! dir entries)
-  (define start0 (+ (string-length dir) 1)) ; skip "dir\n"
-  (let loop ([offset start0] [remaining (cons "../" entries)] [ids '()])
-    (cond
-      [(null? remaining) ids]
-      [else
-       (let* ([name (car remaining)]
-              [icon (oil-native-icon-for name)]
-              [scope (if (oil-native-dir-entry? name) "constant" "ui.text")]
-              [id (helix.core.add-scoped-inlay-hint offset (string-append icon " ") scope)])
-         (loop (+ offset (string-length name) 1) (cdr remaining) (cons id ids)))])))
 
 (define (oil-native-set-icon-ids! doc-id ids)
   (define key (doc-id->usize doc-id))
@@ -212,27 +221,81 @@
   (when st
     (set! *oil-native-state* (hash-insert *oil-native-state* key (hash-insert st 'icon-ids ids)))))
 
-;; Populate the *currently focused* buffer with a listing for `dir` and
-;; record it as the clean state to diff against. Used both for the initial
-;; create-buffer! content and for in-place navigation (enter/up/refresh),
-;; which reuse the same buffer instead of creating a new one each time.
+;; (name . (start . end)) for every non-blank line in the *current* buffer
+;; text, re-parsed live on every call rather than assumed from whatever was
+;; last rendered - this is what makes decorations (below) correct after an
+;; edit shifts lines around, instead of drifting onto the wrong line the way
+;; a one-shot-at-render computation would.
+(define (oil-native-line-ranges doc-id)
+  (define lines (split-many (text.rope->string (editor->text doc-id)) "\n"))
+  (let loop ([offset 0] [remaining lines] [ranges '()])
+    (cond
+      [(null? remaining) (reverse ranges)]
+      [else
+       (let* ([line (car remaining)]
+              [end (+ offset (string-length line))]
+              [trimmed (trim line)]
+              [next (if (> (string-length trimmed) 0)
+                        (cons (cons trimmed (cons offset end)) ranges)
+                        ranges)])
+         (loop (+ end 1) (cdr remaining) next))])))
+
+;; Recomputes and reapplies every visual decoration - directory-name color,
+;; per-language icons, and the pending-change (gray) highlight - from
+;; scratch, from the buffer's current text. Called after every edit
+;; (oil-native-on-change) as well as after every render, rather than trying
+;; to incrementally track individual decorations through arbitrary edits:
+;; deleting a line, for instance, doesn't just shift everything after it, it
+;; removes a line's worth of *identity*, and a hint or highlight that was
+;; "attached" to that line only by character position has no way to know it
+;; should disappear rather than land on whatever now occupies that spot.
+;; Recomputing fresh sidesteps that class of bug entirely.
+(define (oil-native-refresh-decorations! doc-id)
+  (define st (oil-native-get-state doc-id))
+  (when st
+    (let* ([line-ranges (oil-native-line-ranges doc-id)]
+           [dir-ranges (map cdr (filter (lambda (p) (oil-native-dir-entry? (car p))) line-ranges))]
+           [new-icon-ids (begin
+                           (oil-native-clear-icons! doc-id)
+                           (map (lambda (p)
+                                  (let* ([name (car p)]
+                                         [start (car (cdr p))]
+                                         [icon-scope (oil-native-icon-and-scope-for name)])
+                                    (helix.core.add-scoped-inlay-hint
+                                     start (string-append (car icon-scope) " ") (cdr icon-scope))))
+                                line-ranges))]
+           [diff (oil-native-compute-diff (hash-get st 'entries) (oil-native-parse-buffer doc-id)
+                                           (hash-get st 'pending-copies))]
+           [pending-names (append (map cdr (hash-get diff 'renames))
+                                   (hash-get diff 'creates)
+                                   (map cdr (hash-get diff 'copies)))]
+           [pending-ranges (map cdr (filter (lambda (p) (member (car p) pending-names)) line-ranges))])
+      (set-document-highlights! OIL-NATIVE-HIGHLIGHT-NS dir-ranges "info")
+      (oil-native-set-icon-ids! doc-id new-icon-ids)
+      (if (null? pending-ranges)
+          (clear-document-highlights! OIL-NATIVE-PENDING-NS)
+          (set-document-highlights! OIL-NATIVE-PENDING-NS pending-ranges "comment")))))
+
+;; Populate the *currently focused* buffer with a listing for `dir`, name
+;; the buffer after `dir`, and record it as the clean state to diff against.
+;; Used both for the initial create-buffer! content and for in-place
+;; navigation (enter/up/refresh), which reuse the same buffer instead of
+;; creating a new one each time.
 (define (oil-native-render! doc-id dir)
   (define entries (oil-native-read-entries dir))
-  (oil-native-clear-icons! doc-id) ; must run before set-state! below replaces the old icon-ids
-  (buffer-set-text! (oil-native-listing-text dir entries))
-  (set-document-highlights! OIL-NATIVE-HIGHLIGHT-NS
-                             (oil-native-dir-highlight-ranges dir entries)
-                             "constant")
+  (oil-native-clear-icons! doc-id) ; uses the OLD state's icon-ids, before set-state! below replaces them
+  (buffer-set-text! (oil-native-listing-text entries))
+  (set-scratch-buffer-name! dir)
   (oil-native-set-state! doc-id dir entries)
-  (oil-native-set-icon-ids! doc-id (oil-native-apply-icons! dir entries))
-  (helix.goto-line 2))
+  (oil-native-refresh-decorations! doc-id)
+  (set! *oil-native-last-doc-id* doc-id)
+  (helix.goto-line 1))
 
 (define (oil-native-parse-buffer doc-id)
   (define text (text.rope->string (editor->text doc-id)))
   (define lines (split-many text "\n"))
-  (define body (if (null? lines) '() (cdr lines))) ; drop the header line
   (filter (lambda (e) (and (> (string-length e) 0) (not (string=? e "../"))))
-          (map trim body)))
+          (map trim lines)))
 
 ;; ---------------------------------------------------------------------
 ;; Diffing: buffer text (now) vs the last-rendered listing (then)
@@ -287,46 +350,6 @@
      (map (lambda (n) (string-append "  create " n)) (hash-get diff 'creates))
      (map (lambda (p) (string-append "  copy " (car p) " -> " (cdr p))) (hash-get diff 'copies))))
   (string-join lines "\n"))
-
-;; (name . (start . end)) for every non-header, non-blank line in the
-;; *current* buffer text - unlike oil-native-dir-highlight-ranges, which
-;; works off a just-rendered entries list, this re-parses live so it stays
-;; correct while the buffer is being edited.
-(define (oil-native-line-ranges doc-id)
-  (define lines (split-many (text.rope->string (editor->text doc-id)) "\n"))
-  (let loop ([offset 0] [remaining lines] [line-idx 0] [ranges '()])
-    (cond
-      [(null? remaining) (reverse ranges)]
-      [else
-       (let* ([line (car remaining)]
-              [end (+ offset (string-length line))]
-              [trimmed (trim line)]
-              [next (if (and (> line-idx 0) (> (string-length trimmed) 0))
-                        (cons (cons trimmed (cons offset end)) ranges)
-                        ranges)])
-         (loop (+ end 1) (cdr remaining) (+ line-idx 1) next))])))
-
-;; Re-highlights every line that currently represents an uncommitted change
-;; (a rename's new name, a create, or a staged copy) with the theme's
-;; "comment" scope - muted/gray in effectively every theme, which is the
-;; point: a visual "this isn't real yet" marker distinct from the plain text
-;; color, without needing to know anything about the active theme's palette.
-;; Deletions have no line left to highlight; the gap is the signal for those.
-;; Called from oil-native-on-change, so this stays live as you edit, not
-;; just at save time.
-(define (oil-native-highlight-pending! doc-id st)
-  (define diff (oil-native-compute-diff (hash-get st 'entries)
-                                         (oil-native-parse-buffer doc-id)
-                                         (hash-get st 'pending-copies)))
-  (define pending-names
-    (append (map cdr (hash-get diff 'renames))
-            (hash-get diff 'creates)
-            (map cdr (hash-get diff 'copies))))
-  (define pending-ranges
-    (map cdr (filter (lambda (p) (member (car p) pending-names)) (oil-native-line-ranges doc-id))))
-  (if (null? pending-ranges)
-      (clear-document-highlights! OIL-NATIVE-PENDING-NS)
-      (set-document-highlights! OIL-NATIVE-PENDING-NS pending-ranges "comment")))
 
 ;; ---------------------------------------------------------------------
 ;; Filesystem operations
@@ -398,9 +421,6 @@
 ;; Buffer type
 ;; ---------------------------------------------------------------------
 
-(define (oil-native-on-enter doc-id)
-  (set-scratch-buffer-name! OIL-NATIVE-BUFFER-NAME))
-
 (define (oil-native-on-write doc-id path)
   (define st (oil-native-get-state doc-id))
   (when st
@@ -422,8 +442,7 @@
   #true) ; always intercept the literal write - this buffer is never a real file
 
 (define (oil-native-on-change doc-id old-text)
-  (define st (oil-native-get-state doc-id))
-  (when st (oil-native-highlight-pending! doc-id st)))
+  (oil-native-refresh-decorations! doc-id))
 
 (define-buffer-type
  OIL-NATIVE-TYPE
@@ -433,7 +452,6 @@
                                 (- ":oil-native-up")
                                 (q ":oil-native-close")
                                 (R ":oil-native-refresh")))
-       'on-enter oil-native-on-enter
        'on-write oil-native-on-write
        'on-change oil-native-on-change))
 
@@ -443,15 +461,19 @@
 
 ;;@doc
 ;; Open the file manager for the current file's directory (or the Helix cwd
-;; for an unnamed buffer). Always opens a fresh buffer - navigate with
-;; oil-native-enter/oil-native-up from there to browse without piling up
-;; buffers.
+;; for an unnamed buffer). If an oil-native buffer is already open
+;; somewhere, switches to that instance and re-renders it for this
+;; directory instead of opening a new one.
 (define (oil-native)
   (define doc-id (editor->doc-id (editor-focus)))
   (define path (editor-document->path doc-id))
   (define dir (if path (parent-name path) (get-helix-cwd)))
-  (define new-id (create-buffer! OIL-NATIVE-TYPE))
-  (oil-native-render! new-id dir))
+  (define target-id
+    (if (and *oil-native-last-doc-id* (editor-doc-exists? *oil-native-last-doc-id*))
+        (begin (editor-switch-action! *oil-native-last-doc-id* (Action/Replace))
+               *oil-native-last-doc-id*)
+        (create-buffer! OIL-NATIVE-TYPE)))
+  (oil-native-render! target-id dir))
 
 (define (oil-native-current-doc-id)
   (editor->doc-id (editor-focus)))
