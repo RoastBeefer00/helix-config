@@ -25,6 +25,7 @@
 (require "helix/editor.scm")
 (require "helix/misc.scm")
 (require "helix/static.scm")
+(require "helix/components.scm")
 (require (prefix-in helix. "helix/commands.scm"))
 (require-builtin helix/core/text as text.)
 ;; add-scoped-inlay-hint has no helix/misc.scm wrapper (unlike its neighbors
@@ -342,15 +343,6 @@
      (length (hash-get diff 'creates))
      (length (hash-get diff 'copies))))
 
-(define (oil-native-summarize diff)
-  (define lines
-    (append
-     (map (lambda (p) (string-append "  rename " (car p) " -> " (cdr p))) (hash-get diff 'renames))
-     (map (lambda (n) (string-append "  delete " n)) (hash-get diff 'deletes))
-     (map (lambda (n) (string-append "  create " n)) (hash-get diff 'creates))
-     (map (lambda (p) (string-append "  copy " (car p) " -> " (cdr p))) (hash-get diff 'copies))))
-  (string-join lines "\n"))
-
 ;; ---------------------------------------------------------------------
 ;; Filesystem operations
 ;; ---------------------------------------------------------------------
@@ -418,6 +410,89 @@
       (set-error! (string-join (reverse errors) "; "))))
 
 ;; ---------------------------------------------------------------------
+;; Confirm dialog
+;; ---------------------------------------------------------------------
+;; A floating box listing exactly what :w is about to do, built with
+;; new-component! instead of a plain (prompt ...) y/N text line, so the
+;; user sees every rename/delete/create/copy before approving anything.
+
+(define (oil-native-diff-lines diff)
+  (append
+   (map (lambda (p) (cons (string-append "  ~ " (car p) " -> " (cdr p)) "diff.delta"))
+        (hash-get diff 'renames))
+   (map (lambda (n) (cons (string-append "  - " n) "diff.minus")) (hash-get diff 'deletes))
+   (map (lambda (n) (cons (string-append "  + " n) "diff.plus")) (hash-get diff 'creates))
+   (map (lambda (p)
+          (cons (string-append "  + " (cdr p) " (copy of " (oil-native-basename (car p)) ")")
+                "diff.delta.moved"))
+        (hash-get diff 'copies))))
+
+;; Plain recursion instead of (for-each ... (range 0 n)) - `range` here
+;; resolves to a Helix selection Range constructor (shadowed by one of the
+;; helix/*.scm requires above), not the stdlib integer-range builtin.
+(define (oil-native-confirm-draw-lines frame x y lines i limit)
+  (when (and (< i limit) (pair? lines))
+    (let ([p (car lines)])
+      (frame-set-string! frame (+ x 2) (+ y 2 i) (car p) (theme-scope (cdr p))))
+    (oil-native-confirm-draw-lines frame x y (cdr lines) (+ i 1) limit)))
+
+(define (oil-native-confirm-render state rect frame)
+  (define lines (hash-get state 'lines))
+  (define total (length lines))
+  (define title (hash-get state 'title))
+  (define box-width
+    (min (max 10 (- (area-width rect) 4))
+         (max 48 (+ 4 (apply max (string-length title) (map (lambda (p) (string-length (car p))) lines))))))
+  (define box-height (min (max 10 (- (area-height rect) 4)) (+ total 5)))
+  (define x (+ (area-x rect) (quotient (- (area-width rect) box-width) 2)))
+  (define y (+ (area-y rect) (quotient (- (area-height rect) box-height) 2)))
+  (define box-area (area x y box-width box-height))
+  (define visible (max 0 (- box-height 4)))
+  (define truncated? (> total visible))
+  (define shown (if truncated? (max 0 (- visible 1)) visible))
+  (buffer/clear frame box-area)
+  (block/render frame box-area (block))
+  (frame-set-string! frame (+ x 2) y title (theme-scope "ui.text.focus"))
+  (oil-native-confirm-draw-lines frame x y lines 0 (min shown total))
+  (when truncated?
+    (frame-set-string! frame (+ x 2)
+                        (+ y 2 shown)
+                        (string-append "  ... and " (number->string (- total shown)) " more")
+                        (theme-scope "comment")))
+  (frame-set-string! frame (+ x 2) (+ y box-height -2) "[y] apply     [n / Esc] cancel" (theme-scope "ui.text")))
+
+(define (oil-native-confirm-event-handler state event)
+  (define char (key-event-char event))
+  (cond
+    [(or (key-event-enter? event) (equal? char #\y) (equal? char #\Y))
+     ((hash-get state 'on-confirm))
+     event-result/close]
+    [(or (key-event-escape? event) (equal? char #\n) (equal? char #\N))
+     ((hash-get state 'on-cancel))
+     event-result/close]
+    [else event-result/consume]))
+
+;; Pushes the floating confirm box. `diff` is applied via `on-confirm` if the
+;; user accepts, or silently discarded via `on-cancel` if they don't -
+;; nothing touches the filesystem until then.
+(define (oil-native-confirm! doc-id dir diff)
+  (define state
+    (hash 'lines (oil-native-diff-lines diff)
+          'title
+          (string-append "oil-native: apply " (number->string (oil-native-diff-total diff)) " change(s)?")
+          'on-confirm (lambda () (oil-native-apply! doc-id dir diff))
+          'on-cancel (lambda () (set-status! "oil-native: cancelled, no changes applied"))))
+  (define comp
+    (new-component! "oil-native-confirm"
+                     state
+                     oil-native-confirm-render
+                     (hash "handle_event" oil-native-confirm-event-handler)))
+  ;; `overlaid` mutates `comp` in place (centers it at 90%x90% of the
+  ;; viewport) rather than returning a new value - it does not compose.
+  (overlaid comp)
+  (push-component! comp))
+
+;; ---------------------------------------------------------------------
 ;; Buffer type
 ;; ---------------------------------------------------------------------
 
@@ -430,15 +505,7 @@
                                            (hash-get st 'pending-copies))])
       (if (= (oil-native-diff-total diff) 0)
           (begin (buffer-mark-saved!) (set-status! "oil-native: nothing to do"))
-          (begin
-            (set-status! (oil-native-summarize diff))
-            (push-component!
-             (prompt (string-append "oil-native: apply " (number->string (oil-native-diff-total diff))
-                                     " change(s)? [y/N] ")
-                     (lambda (answer)
-                       (if (member answer (list "y" "Y" "yes" "Yes" "YES"))
-                           (oil-native-apply! doc-id dir diff)
-                           (set-status! "oil-native: cancelled, no changes applied")))))))))
+          (oil-native-confirm! doc-id dir diff))))
   #true) ; always intercept the literal write - this buffer is never a real file
 
 (define (oil-native-on-change doc-id old-text)
