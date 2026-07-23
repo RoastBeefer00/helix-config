@@ -562,9 +562,12 @@
 
 (register-hook 'post-command
                (lambda (command-name)
-                 (define doc-id (editor->doc-id (editor-focus)))
-                 (define st (oil-native-get-state doc-id))
-                 (when st
-                   (when (string=? command-name "yank") (oil-native-observe-yank! doc-id))
-                   (when (or (string=? command-name "paste_after") (string=? command-name "paste_before"))
-                     (oil-native-observe-paste! doc-id)))))
+                 ;; `editor->doc-id` can return #false here - e.g. the focused
+                 ;; view can already be torn down by the time this fires during
+                 ;; quit - so doc-id must be checked before it's used as a key.
+                 (let* ([doc-id (editor->doc-id (editor-focus))]
+                        [st (and doc-id (oil-native-get-state doc-id))])
+                   (when st
+                     (when (string=? command-name "yank") (oil-native-observe-yank! doc-id))
+                     (when (or (string=? command-name "paste_after") (string=? command-name "paste_before"))
+                       (oil-native-observe-paste! doc-id))))))
