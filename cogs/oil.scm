@@ -160,7 +160,9 @@
         "scm"  (cons "" "punctuation.bracket")
         "svelte" (cons "" "keyword.directive")
         "nix"    (cons "" "keyword.storage")
-        "lua"    (cons "" "variable.builtin")))
+        "lua"    (cons "" "variable.builtin")
+        "tf"     (cons "" "markup.link")
+        "hcl"    (cons "" "markup.link")))
 
 ;; The substring after the last "." in `name`, or #false if there isn't one.
 (define (oil-extension name)
