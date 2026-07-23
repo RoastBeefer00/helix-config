@@ -10,18 +10,18 @@
         ]
       },
       "locked": {
-        "lastModified": 1784766556,
-        "narHash": "sha256-9IgFn/+h6UO5cXMuCxwVXwAzq9BBlEFwlAtf1H4HD84=",
-        "ref": "steel/plugin-buffer-primitives",
-        "rev": "f6de5d846422e18376462dc87e47fc3751d0a4f2",
-        "revCount": 8091,
-        "type": "git",
-        "url": "file:///home/roastbeefer/helix-steel"
+        "lastModified": 1784820727,
+        "narHash": "sha256-rW33ZHhmLBglzi09XBnvJc5JuUrwe96GehN5EosUpVw=",
+        "owner": "RoastBeefer00",
+        "repo": "evilhelix",
+        "rev": "2625ca8d88d795390e2c30e432f6dff01a664ef3",
+        "type": "github"
       },
       "original": {
-        "ref": "steel/plugin-buffer-primitives",
-        "type": "git",
-        "url": "file:///home/roastbeefer/helix-steel"
+        "owner": "RoastBeefer00",
+        "ref": "local/combined-features",
+        "repo": "evilhelix",
+        "type": "github"
       }
     },
     "nixpkgs": {
