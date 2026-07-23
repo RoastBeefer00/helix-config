@@ -9,10 +9,15 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # Personal helix fork with Steel scripting support, on the combined-features branch.
-    # Run `nix flake update helix-steel` to advance to the latest commit on that branch.
+    # TEST BRANCH: pointed at the local helix-steel checkout's
+    # steel/plugin-buffer-primitives branch instead of the GitHub fork, to
+    # test the new buffer-primitive plugin APIs before they're pushed
+    # anywhere. Uses git+file so only tracked source is read (not the
+    # multi-GB gitignored target/ dir a plain path: input would try to hash).
+    # Revert: git checkout main (or merge this branch once it's pushed
+    # upstream and this points back at a github: url).
     helix-steel = {
-      url = "github:RoastBeefer00/evilhelix/local/combined-features";
+      url = "git+file:///home/roastbeefer/helix-steel?ref=steel/plugin-buffer-primitives";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.rust-overlay.follows = "rust-overlay";
     };
