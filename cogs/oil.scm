@@ -291,6 +291,7 @@
   (oil-clear-icons! doc-id) ; uses the OLD state's icon-ids, before set-state! below replaces them
   (buffer-set-text! (oil-listing-text entries))
   (set-scratch-buffer-name! dir)
+  (set-bufferline-name! "oil")
   (oil-set-state! doc-id dir entries)
   (oil-refresh-decorations! doc-id)
   (set! *oil-last-doc-id* doc-id)
