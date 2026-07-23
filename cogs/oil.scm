@@ -1,4 +1,4 @@
-;; oil-native.hx — an oil.nvim-style file manager, built entirely on top of
+;; oil.hx — an oil.nvim-style file manager, built entirely on top of
 ;; helix/buffer-types.scm (define-buffer-type + create-buffer!) instead of
 ;; the raw component API. The directory listing is a real, modally-editable
 ;; buffer: navigate it with normal Helix motions, edit lines to rename
@@ -6,13 +6,13 @@
 ;; `:w` shows what would happen and applies it only if you confirm.
 ;;
 ;; Copying uses Helix's own yank/paste (y/p), unmodified - there is no
-;; oil-native-specific keybinding or command for it. A `post-command` hook
+;; oil-specific keybinding or command for it. A `post-command` hook
 ;; passively watches for the native "yank"/"paste_after"/"paste_before"
-;; commands firing while an oil-native buffer is focused, reads what was
+;; commands firing while an oil buffer is focused, reads what was
 ;; actually yanked/pasted via the register (register->value), and if it
 ;; matches an entry, stages a copy the same way a rename gets staged: `:w`
 ;; sees it in the diff and asks for confirmation like everything else. See
-;; oil-native-observe-yank!/oil-native-observe-paste! below.
+;; oil-observe-yank!/oil-observe-paste! below.
 ;;
 ;; Scope, deliberately: this is not a port of oil.nvim's full feature set
 ;; (no git-status hints, no hidden-file toggle, no cut - only copy). It
@@ -33,89 +33,89 @@
 ;; via helix/misc.scm above) - reach it directly through the builtin module.
 (require-builtin helix/core/misc as helix.core.)
 
-(provide oil-native
-         oil-native-enter
-         oil-native-up
-         oil-native-refresh
-         oil-native-close)
+(provide oil
+         oil-enter
+         oil-up
+         oil-refresh
+         oil-close)
 
-(define OIL-NATIVE-TYPE "oil-native")
-(define OIL-NATIVE-HIGHLIGHT-NS "oil-native-dirs")
-(define OIL-NATIVE-PENDING-NS "oil-native-pending")
+(define OIL-TYPE "oil")
+(define OIL-HIGHLIGHT-NS "oil-dirs")
+(define OIL-PENDING-NS "oil-pending")
 
 ;; doc-id (usize) -> (hash 'dir string 'entries (listof string)
 ;;                         'pending-copies (hash display-name -> source full-path))
 ;; 'entries is the listing as of the last successful populate/apply - the
 ;; snapshot `:w` diffs the live buffer text against. 'pending-copies records
-;; what a native paste inserted (see oil-native-observe-paste! below for why
+;; what a native paste inserted (see oil-observe-paste! below for why
 ;; it's keyed by name, and the caveat that implies), reset on every fresh
 ;; render. Entries for closed buffers are never removed (doc-ids aren't
 ;; reused, so this is a harmless leak, same tradeoff the underlying keymap
 ;; reverse-mapping table makes).
-(define *oil-native-state* (hash))
+(define *oil-state* (hash))
 
-;; The most recently observed native yank of an oil-native entry:
+;; The most recently observed native yank of an oil entry:
 ;; (list full-path is-dir? display-name-as-yanked), or #false. Global rather
 ;; than per-buffer, so yank in one directory and paste after navigating (or
-;; in a different oil-native buffer entirely) works. display-name-as-yanked
-;; is what oil-native-observe-paste! matches the pasted register content
+;; in a different oil buffer entirely) works. display-name-as-yanked
+;; is what oil-observe-paste! matches the pasted register content
 ;; against - if you yank something else in between (even outside any
-;; oil-native buffer) before pasting, this no longer matches and the paste
+;; oil buffer) before pasting, this no longer matches and the paste
 ;; is treated as plain text, not a copy.
-(define *oil-native-clipboard* #false)
+(define *oil-clipboard* #false)
 
-;; Doc-id of the most recently rendered oil-native buffer, or #false. Lets
-;; oil-native (the open command) reuse an already-open instance - switching
+;; Doc-id of the most recently rendered oil buffer, or #false. Lets
+;; oil (the open command) reuse an already-open instance - switching
 ;; to it and re-rendering for whatever directory was just requested - rather
 ;; than piling up a new buffer on every invocation.
-(define *oil-native-last-doc-id* #false)
+(define *oil-last-doc-id* #false)
 
-(define (oil-native-get-state doc-id)
+(define (oil-get-state doc-id)
   (define key (doc-id->usize doc-id))
-  (if (hash-contains? *oil-native-state* key) (hash-get *oil-native-state* key) #false))
+  (if (hash-contains? *oil-state* key) (hash-get *oil-state* key) #false))
 
-(define (oil-native-set-state! doc-id dir entries)
-  (set! *oil-native-state*
-        (hash-insert *oil-native-state* (doc-id->usize doc-id)
+(define (oil-set-state! doc-id dir entries)
+  (set! *oil-state*
+        (hash-insert *oil-state* (doc-id->usize doc-id)
                      (hash 'dir dir 'entries entries 'pending-copies (hash)))))
 
 ;; Records that `name` (as it currently reads in the buffer) was inserted by
 ;; a native paste, sourced from `source`. Leaves 'dir/'entries untouched.
-(define (oil-native-record-copy! doc-id name source)
+(define (oil-record-copy! doc-id name source)
   (define key (doc-id->usize doc-id))
-  (define st (oil-native-get-state doc-id))
+  (define st (oil-get-state doc-id))
   (when st
     (let* ([pending (hash-get st 'pending-copies)])
-      (set! *oil-native-state*
-            (hash-insert *oil-native-state* key
+      (set! *oil-state*
+            (hash-insert *oil-state* key
                          (hash-insert st 'pending-copies (hash-insert pending name source)))))))
 
 ;; ---------------------------------------------------------------------
 ;; Paths
 ;; ---------------------------------------------------------------------
 
-(define (oil-native-path-join base name)
+(define (oil-path-join base name)
   (string-append (trim-end-matches base (path-separator)) (path-separator) name))
 
-(define (oil-native-basename full-path)
+(define (oil-basename full-path)
   (define parts (filter (lambda (s) (> (string-length s) 0)) (split-many full-path (path-separator))))
   (if (null? parts) full-path (list-ref parts (- (length parts) 1))))
 
 ;; Directories are marked in the listing (and in the buffer text) with a
 ;; trailing path separator, same convention oil.nvim uses.
-(define (oil-native-dir-entry? name)
+(define (oil-dir-entry? name)
   (ends-with? name (path-separator)))
 
-(define (oil-native-full-path dir name)
-  (oil-native-path-join dir (trim-end-matches name (path-separator))))
+(define (oil-full-path dir name)
+  (oil-path-join dir (trim-end-matches name (path-separator))))
 
 ;; Removes the first occurrence of `name` from `lst` (used to check whether
 ;; a just-pasted name collides with anything *other than itself*).
-(define (oil-native-remove-one name lst)
+(define (oil-remove-one name lst)
   (cond
     [(null? lst) '()]
     [(string=? (car lst) name) (cdr lst)]
-    [else (cons (car lst) (oil-native-remove-one name (cdr lst)))]))
+    [else (cons (car lst) (oil-remove-one name (cdr lst)))]))
 
 ;; ---------------------------------------------------------------------
 ;; Icons
@@ -131,9 +131,9 @@
 ;; language-specific ones are the common devicons codepoints), but if
 ;; anything renders as a box or the wrong shape in your terminal, this table
 ;; is the only place that needs fixing.
-(define OIL-NATIVE-ICON-DIR (cons "" "info"))
-(define OIL-NATIVE-ICON-FILE (cons "" "ui.text"))
-(define OIL-NATIVE-ICON-TABLE
+(define OIL-ICON-DIR (cons "" "info"))
+(define OIL-ICON-FILE (cons "" "ui.text"))
+(define OIL-ICON-TABLE
   (hash "rs"   (cons "" "keyword")
         "go"   (cons "" "type")
         "py"   (cons "" "function")
@@ -156,10 +156,14 @@
         "lock" (cons "" "warning")
         "sh"   (cons "" "function.builtin")
         "html" (cons "" "tag")
-        "css"  (cons "" "constructor")))
+        "css"  (cons "" "constructor")
+        "scm"  (cons "" "punctuation.bracket")
+        "svelte" (cons "" "keyword.directive")
+        "nix"    (cons "" "keyword.storage")
+        "lua"    (cons "" "variable.builtin")))
 
 ;; The substring after the last "." in `name`, or #false if there isn't one.
-(define (oil-native-extension name)
+(define (oil-extension name)
   (define parts (split-many name "."))
   (if (< (length parts) 2) #false (list-ref parts (- (length parts) 1))))
 
@@ -169,13 +173,13 @@
 ;; to plugins, only theme scopes, so exact brand-color matching isn't
 ;; possible; this aims for "visually distinct and roughly fitting; exact
 ;; hue depends on your theme," not pixel-perfect devicons parity.
-(define (oil-native-icon-and-scope-for name)
-  (if (oil-native-dir-entry? name)
-      OIL-NATIVE-ICON-DIR
-      (let ([ext (oil-native-extension (trim-end-matches name (path-separator)))])
-        (if (and ext (hash-contains? OIL-NATIVE-ICON-TABLE ext))
-            (hash-get OIL-NATIVE-ICON-TABLE ext)
-            OIL-NATIVE-ICON-FILE))))
+(define (oil-icon-and-scope-for name)
+  (if (oil-dir-entry? name)
+      OIL-ICON-DIR
+      (let ([ext (oil-extension (trim-end-matches name (path-separator)))])
+        (if (and ext (hash-contains? OIL-ICON-TABLE ext))
+            (hash-get OIL-ICON-TABLE ext)
+            OIL-ICON-FILE))))
 
 ;; ---------------------------------------------------------------------
 ;; Listing / rendering
@@ -184,50 +188,50 @@
 ;; Directories (alphabetical) first, then files (alphabetical) - matches the
 ;; usual file-manager convention. "../" is not part of this list; it's
 ;; prepended separately, always first regardless.
-(define (oil-native-read-entries dir)
+(define (oil-read-entries dir)
   (define raw (with-handler
-               (lambda (err) (error (string-append "oil-native: cannot read directory: "
+               (lambda (err) (error (string-append "oil: cannot read directory: "
                                                     (error-object-message err))))
                (read-dir dir)))
   (define named
     (map (lambda (full)
-           (define base (oil-native-basename full))
+           (define base (oil-basename full))
            (if (is-file? full) base (string-append base (path-separator))))
          raw))
-  (define dirs (sort (filter oil-native-dir-entry? named) string<?))
-  (define files (sort (filter (lambda (n) (not (oil-native-dir-entry? n))) named) string<?))
+  (define dirs (sort (filter oil-dir-entry? named) string<?))
+  (define files (sort (filter (lambda (n) (not (oil-dir-entry? n))) named) string<?))
   (append dirs files))
 
 ;; No header line - the directory is shown as the buffer's name (status
 ;; line / bufferline) instead, via set-scratch-buffer-name! in render!
 ;; below, so the buffer's actual text is only ever real entries. "../" is
 ;; always first, so the parent directory is reachable both by editing the
-;; buffer (rare) and via oil-native-up (normal case).
-(define (oil-native-listing-text entries)
+;; buffer (rare) and via oil-up (normal case).
+(define (oil-listing-text entries)
   (string-join (cons "../" entries) "\n"))
 
 ;; Icons are virtual text (add-scoped-inlay-hint), never real buffer
 ;; characters - critical, since real characters would show up in
-;; oil-native-parse-buffer and corrupt the diff. Each call returns a
+;; oil-parse-buffer and corrupt the diff. Each call returns a
 ;; (first-line . last-line) id, same shape remove-inlay-hint-by-id expects.
-(define (oil-native-clear-icons! doc-id)
-  (define st (oil-native-get-state doc-id))
+(define (oil-clear-icons! doc-id)
+  (define st (oil-get-state doc-id))
   (when (and st (hash-contains? st 'icon-ids))
     (for-each (lambda (id) (remove-inlay-hint-by-id (list-ref id 0) (list-ref id 1)))
               (hash-get st 'icon-ids))))
 
-(define (oil-native-set-icon-ids! doc-id ids)
+(define (oil-set-icon-ids! doc-id ids)
   (define key (doc-id->usize doc-id))
-  (define st (oil-native-get-state doc-id))
+  (define st (oil-get-state doc-id))
   (when st
-    (set! *oil-native-state* (hash-insert *oil-native-state* key (hash-insert st 'icon-ids ids)))))
+    (set! *oil-state* (hash-insert *oil-state* key (hash-insert st 'icon-ids ids)))))
 
 ;; (name . (start . end)) for every non-blank line in the *current* buffer
 ;; text, re-parsed live on every call rather than assumed from whatever was
 ;; last rendered - this is what makes decorations (below) correct after an
 ;; edit shifts lines around, instead of drifting onto the wrong line the way
 ;; a one-shot-at-render computation would.
-(define (oil-native-line-ranges doc-id)
+(define (oil-line-ranges doc-id)
   (define lines (split-many (text.rope->string (editor->text doc-id)) "\n"))
   (let loop ([offset 0] [remaining lines] [ranges '()])
     (cond
@@ -244,55 +248,55 @@
 ;; Recomputes and reapplies every visual decoration - directory-name color,
 ;; per-language icons, and the pending-change (gray) highlight - from
 ;; scratch, from the buffer's current text. Called after every edit
-;; (oil-native-on-change) as well as after every render, rather than trying
+;; (oil-on-change) as well as after every render, rather than trying
 ;; to incrementally track individual decorations through arbitrary edits:
 ;; deleting a line, for instance, doesn't just shift everything after it, it
 ;; removes a line's worth of *identity*, and a hint or highlight that was
 ;; "attached" to that line only by character position has no way to know it
 ;; should disappear rather than land on whatever now occupies that spot.
 ;; Recomputing fresh sidesteps that class of bug entirely.
-(define (oil-native-refresh-decorations! doc-id)
-  (define st (oil-native-get-state doc-id))
+(define (oil-refresh-decorations! doc-id)
+  (define st (oil-get-state doc-id))
   (when st
-    (let* ([line-ranges (oil-native-line-ranges doc-id)]
-           [dir-ranges (map cdr (filter (lambda (p) (oil-native-dir-entry? (car p))) line-ranges))]
+    (let* ([line-ranges (oil-line-ranges doc-id)]
+           [dir-ranges (map cdr (filter (lambda (p) (oil-dir-entry? (car p))) line-ranges))]
            [new-icon-ids (begin
-                           (oil-native-clear-icons! doc-id)
+                           (oil-clear-icons! doc-id)
                            (map (lambda (p)
                                   (let* ([name (car p)]
                                          [start (car (cdr p))]
-                                         [icon-scope (oil-native-icon-and-scope-for name)])
+                                         [icon-scope (oil-icon-and-scope-for name)])
                                     (helix.core.add-scoped-inlay-hint
                                      start (string-append (car icon-scope) " ") (cdr icon-scope))))
                                 line-ranges))]
-           [diff (oil-native-compute-diff (hash-get st 'entries) (oil-native-parse-buffer doc-id)
+           [diff (oil-compute-diff (hash-get st 'entries) (oil-parse-buffer doc-id)
                                            (hash-get st 'pending-copies))]
            [pending-names (append (map cdr (hash-get diff 'renames))
                                    (hash-get diff 'creates)
                                    (map cdr (hash-get diff 'copies)))]
            [pending-ranges (map cdr (filter (lambda (p) (member (car p) pending-names)) line-ranges))])
-      (set-document-highlights! OIL-NATIVE-HIGHLIGHT-NS dir-ranges "info")
-      (oil-native-set-icon-ids! doc-id new-icon-ids)
+      (set-document-highlights! OIL-HIGHLIGHT-NS dir-ranges "info")
+      (oil-set-icon-ids! doc-id new-icon-ids)
       (if (null? pending-ranges)
-          (clear-document-highlights! OIL-NATIVE-PENDING-NS)
-          (set-document-highlights! OIL-NATIVE-PENDING-NS pending-ranges "comment")))))
+          (clear-document-highlights! OIL-PENDING-NS)
+          (set-document-highlights! OIL-PENDING-NS pending-ranges "comment")))))
 
 ;; Populate the *currently focused* buffer with a listing for `dir`, name
 ;; the buffer after `dir`, and record it as the clean state to diff against.
 ;; Used both for the initial create-buffer! content and for in-place
 ;; navigation (enter/up/refresh), which reuse the same buffer instead of
 ;; creating a new one each time.
-(define (oil-native-render! doc-id dir)
-  (define entries (oil-native-read-entries dir))
-  (oil-native-clear-icons! doc-id) ; uses the OLD state's icon-ids, before set-state! below replaces them
-  (buffer-set-text! (oil-native-listing-text entries))
+(define (oil-render! doc-id dir)
+  (define entries (oil-read-entries dir))
+  (oil-clear-icons! doc-id) ; uses the OLD state's icon-ids, before set-state! below replaces them
+  (buffer-set-text! (oil-listing-text entries))
   (set-scratch-buffer-name! dir)
-  (oil-native-set-state! doc-id dir entries)
-  (oil-native-refresh-decorations! doc-id)
-  (set! *oil-native-last-doc-id* doc-id)
+  (oil-set-state! doc-id dir entries)
+  (oil-refresh-decorations! doc-id)
+  (set! *oil-last-doc-id* doc-id)
   (helix.goto-line 1))
 
-(define (oil-native-parse-buffer doc-id)
+(define (oil-parse-buffer doc-id)
   (define text (text.rope->string (editor->text doc-id)))
   (define lines (split-many text "\n"))
   (filter (lambda (e) (and (> (string-length e) 0) (not (string=? e "../"))))
@@ -308,7 +312,7 @@
 ;; single-line rename is always paired correctly; several simultaneous
 ;; renames may pair in an order you didn't intend. The confirm prompt always
 ;; shows exactly what's about to happen, so nothing is ever silently wrong.
-(define (oil-native-pair-same-type removed added)
+(define (oil-pair-same-type removed added)
   (let loop ([rem removed] [add added] [renames '()])
     (cond
       [(or (null? rem) (null? add)) (list (reverse renames) rem add)]
@@ -321,23 +325,23 @@
 ;; what's in pending-copies, so it falls back to being treated as a plain
 ;; create (or gets pulled into rename pairing like any other added name) -
 ;; paste-then-save without renaming is the supported path.
-(define (oil-native-compute-diff old-names new-names pending-copies)
+(define (oil-compute-diff old-names new-names pending-copies)
   (define added-all (filter (lambda (n) (not (member n old-names))) new-names))
   (define copy-names (filter (lambda (n) (hash-contains? pending-copies n)) added-all))
   (define removed (filter (lambda (n) (not (member n new-names))) old-names))
   (define added (filter (lambda (n) (not (member n copy-names))) added-all))
-  (define rem-dirs (filter oil-native-dir-entry? removed))
-  (define rem-files (filter (lambda (n) (not (oil-native-dir-entry? n))) removed))
-  (define add-dirs (filter oil-native-dir-entry? added))
-  (define add-files (filter (lambda (n) (not (oil-native-dir-entry? n))) added))
-  (define dir-result (oil-native-pair-same-type rem-dirs add-dirs))
-  (define file-result (oil-native-pair-same-type rem-files add-files))
+  (define rem-dirs (filter oil-dir-entry? removed))
+  (define rem-files (filter (lambda (n) (not (oil-dir-entry? n))) removed))
+  (define add-dirs (filter oil-dir-entry? added))
+  (define add-files (filter (lambda (n) (not (oil-dir-entry? n))) added))
+  (define dir-result (oil-pair-same-type rem-dirs add-dirs))
+  (define file-result (oil-pair-same-type rem-files add-files))
   (hash 'renames (append (list-ref dir-result 0) (list-ref file-result 0))
         'deletes (append (list-ref dir-result 1) (list-ref file-result 1))
         'creates (append (list-ref dir-result 2) (list-ref file-result 2))
         'copies (map (lambda (n) (cons (hash-get pending-copies n) n)) copy-names)))
 
-(define (oil-native-diff-total diff)
+(define (oil-diff-total diff)
   (+ (length (hash-get diff 'renames))
      (length (hash-get diff 'deletes))
      (length (hash-get diff 'creates))
@@ -347,7 +351,7 @@
 ;; Filesystem operations
 ;; ---------------------------------------------------------------------
 
-(define (oil-native-run! program args)
+(define (oil-run! program args)
   (define proc (~> (command program args) with-stdout-piped with-stderr-piped spawn-process))
   (if (Ok? proc)
       (let ([stderr (trim (read-port-to-string (child-stderr (Ok->value proc))))])
@@ -356,56 +360,56 @@
 
 ;; Two-phase (via a temp name) so that e.g. swapping two entries' names in
 ;; the same batch can't clobber one with the other mid-rename.
-(define (oil-native-apply-renames! dir renames)
+(define (oil-apply-renames! dir renames)
   (define actual (filter (lambda (p) (not (string=? (car p) (cdr p)))) renames))
   (for-each (lambda (p)
-              (oil-native-run! "mv"
-                                (list (oil-native-full-path dir (car p))
-                                      (string-append (oil-native-full-path dir (car p)) ".~oil-native~"))))
+              (oil-run! "mv"
+                                (list (oil-full-path dir (car p))
+                                      (string-append (oil-full-path dir (car p)) ".~oil~"))))
             actual)
   (for-each (lambda (p)
-              (oil-native-run! "mv"
-                                (list (string-append (oil-native-full-path dir (car p)) ".~oil-native~")
-                                      (oil-native-full-path dir (cdr p)))))
+              (oil-run! "mv"
+                                (list (string-append (oil-full-path dir (car p)) ".~oil~")
+                                      (oil-full-path dir (cdr p)))))
             actual))
 
-(define (oil-native-delete! dir name)
-  (define path (oil-native-full-path dir name))
-  (if (oil-native-dir-entry? name)
+(define (oil-delete! dir name)
+  (define path (oil-full-path dir name))
+  (if (oil-dir-entry? name)
       (delete-directory! path) ; only removes empty directories
       (delete-file! path)))
 
-(define (oil-native-create! dir name)
-  (define path (oil-native-full-path dir name))
-  (if (oil-native-dir-entry? name)
-      (oil-native-run! "mkdir" (list "-p" path))
+(define (oil-create! dir name)
+  (define path (oil-full-path dir name))
+  (if (oil-dir-entry? name)
+      (oil-run! "mkdir" (list "-p" path))
       (call-with-output-file path (lambda (_p) #t))))
 
 ;; -r copies directories recursively and works fine for a plain file too.
-(define (oil-native-copy! source dir name)
-  (oil-native-run! "cp" (list "-r" source (oil-native-full-path dir name))))
+(define (oil-copy! source dir name)
+  (oil-run! "cp" (list "-r" source (oil-full-path dir name))))
 
 ;; Applies a diff, collecting errors from each individual operation instead
 ;; of aborting on the first one, then reports success/failure and always
 ;; refreshes the buffer to reflect whatever the filesystem actually ended up
 ;; as (which, on partial failure, may not match every requested change).
-(define (oil-native-apply! doc-id dir diff)
+(define (oil-apply! doc-id dir diff)
   (define errors '())
   (define (try! label thunk)
     (with-handler (lambda (err) (set! errors (cons (string-append label ": " (error-object-message err)) errors)))
                   (thunk)))
-  (try! "rename" (lambda () (oil-native-apply-renames! dir (hash-get diff 'renames))))
-  (for-each (lambda (n) (try! (string-append "delete " n) (lambda () (oil-native-delete! dir n))))
+  (try! "rename" (lambda () (oil-apply-renames! dir (hash-get diff 'renames))))
+  (for-each (lambda (n) (try! (string-append "delete " n) (lambda () (oil-delete! dir n))))
             (hash-get diff 'deletes))
-  (for-each (lambda (n) (try! (string-append "create " n) (lambda () (oil-native-create! dir n))))
+  (for-each (lambda (n) (try! (string-append "create " n) (lambda () (oil-create! dir n))))
             (hash-get diff 'creates))
   (for-each (lambda (p) (try! (string-append "copy " (car p) " -> " (cdr p))
-                               (lambda () (oil-native-copy! (car p) dir (cdr p)))))
+                               (lambda () (oil-copy! (car p) dir (cdr p)))))
             (hash-get diff 'copies))
-  (oil-native-render! doc-id dir)
+  (oil-render! doc-id dir)
   (if (null? errors)
       (begin (buffer-mark-saved!)
-             (set-status! (string-append "oil-native: applied " (number->string (oil-native-diff-total diff))
+             (set-status! (string-append "oil: applied " (number->string (oil-diff-total diff))
                                           " change(s)")))
       (set-error! (string-join (reverse errors) "; "))))
 
@@ -416,27 +420,27 @@
 ;; new-component! instead of a plain (prompt ...) y/N text line, so the
 ;; user sees every rename/delete/create/copy before approving anything.
 
-(define (oil-native-diff-lines diff)
+(define (oil-diff-lines diff)
   (append
    (map (lambda (p) (cons (string-append "  ~ " (car p) " -> " (cdr p)) "diff.delta"))
         (hash-get diff 'renames))
    (map (lambda (n) (cons (string-append "  - " n) "diff.minus")) (hash-get diff 'deletes))
    (map (lambda (n) (cons (string-append "  + " n) "diff.plus")) (hash-get diff 'creates))
    (map (lambda (p)
-          (cons (string-append "  + " (cdr p) " (copy of " (oil-native-basename (car p)) ")")
+          (cons (string-append "  + " (cdr p) " (copy of " (oil-basename (car p)) ")")
                 "diff.delta.moved"))
         (hash-get diff 'copies))))
 
 ;; Plain recursion instead of (for-each ... (range 0 n)) - `range` here
 ;; resolves to a Helix selection Range constructor (shadowed by one of the
 ;; helix/*.scm requires above), not the stdlib integer-range builtin.
-(define (oil-native-confirm-draw-lines frame x y lines i limit)
+(define (oil-confirm-draw-lines frame x y lines i limit)
   (when (and (< i limit) (pair? lines))
     (let ([p (car lines)])
       (frame-set-string! frame (+ x 2) (+ y 2 i) (car p) (theme-scope (cdr p))))
-    (oil-native-confirm-draw-lines frame x y (cdr lines) (+ i 1) limit)))
+    (oil-confirm-draw-lines frame x y (cdr lines) (+ i 1) limit)))
 
-(define (oil-native-confirm-render state rect frame)
+(define (oil-confirm-render state rect frame)
   (define lines (hash-get state 'lines))
   (define total (length lines))
   (define title (hash-get state 'title))
@@ -453,7 +457,7 @@
   (buffer/clear frame box-area)
   (block/render frame box-area (block))
   (frame-set-string! frame (+ x 2) y title (theme-scope "ui.text.focus"))
-  (oil-native-confirm-draw-lines frame x y lines 0 (min shown total))
+  (oil-confirm-draw-lines frame x y lines 0 (min shown total))
   (when truncated?
     (frame-set-string! frame (+ x 2)
                         (+ y 2 shown)
@@ -461,7 +465,7 @@
                         (theme-scope "comment")))
   (frame-set-string! frame (+ x 2) (+ y box-height -2) "[y] apply     [n / Esc] cancel" (theme-scope "ui.text")))
 
-(define (oil-native-confirm-event-handler state event)
+(define (oil-confirm-event-handler state event)
   (define char (key-event-char event))
   (cond
     [(or (key-event-enter? event) (equal? char #\y) (equal? char #\Y))
@@ -475,18 +479,18 @@
 ;; Pushes the floating confirm box. `diff` is applied via `on-confirm` if the
 ;; user accepts, or silently discarded via `on-cancel` if they don't -
 ;; nothing touches the filesystem until then.
-(define (oil-native-confirm! doc-id dir diff)
+(define (oil-confirm! doc-id dir diff)
   (define state
-    (hash 'lines (oil-native-diff-lines diff)
+    (hash 'lines (oil-diff-lines diff)
           'title
-          (string-append "oil-native: apply " (number->string (oil-native-diff-total diff)) " change(s)?")
-          'on-confirm (lambda () (oil-native-apply! doc-id dir diff))
-          'on-cancel (lambda () (set-status! "oil-native: cancelled, no changes applied"))))
+          (string-append "oil: apply " (number->string (oil-diff-total diff)) " change(s)?")
+          'on-confirm (lambda () (oil-apply! doc-id dir diff))
+          'on-cancel (lambda () (set-status! "oil: cancelled, no changes applied"))))
   (define comp
-    (new-component! "oil-native-confirm"
+    (new-component! "oil-confirm"
                      state
-                     oil-native-confirm-render
-                     (hash "handle_event" oil-native-confirm-event-handler)))
+                     oil-confirm-render
+                     (hash "handle_event" oil-confirm-event-handler)))
   ;; `overlaid` mutates `comp` in place (centers it at 90%x90% of the
   ;; viewport) rather than returning a new value - it does not compose.
   (overlaid comp)
@@ -496,31 +500,31 @@
 ;; Buffer type
 ;; ---------------------------------------------------------------------
 
-(define (oil-native-on-write doc-id path)
-  (define st (oil-native-get-state doc-id))
+(define (oil-on-write doc-id path)
+  (define st (oil-get-state doc-id))
   (when st
     (let* ([dir (hash-get st 'dir)]
-           [diff (oil-native-compute-diff (hash-get st 'entries)
-                                           (oil-native-parse-buffer doc-id)
+           [diff (oil-compute-diff (hash-get st 'entries)
+                                           (oil-parse-buffer doc-id)
                                            (hash-get st 'pending-copies))])
-      (if (= (oil-native-diff-total diff) 0)
-          (begin (buffer-mark-saved!) (set-status! "oil-native: nothing to do"))
-          (oil-native-confirm! doc-id dir diff))))
+      (if (= (oil-diff-total diff) 0)
+          (begin (buffer-mark-saved!) (set-status! "oil: nothing to do"))
+          (oil-confirm! doc-id dir diff))))
   #true) ; always intercept the literal write - this buffer is never a real file
 
-(define (oil-native-on-change doc-id old-text)
-  (oil-native-refresh-decorations! doc-id))
+(define (oil-on-change doc-id old-text)
+  (oil-refresh-decorations! doc-id))
 
 (define-buffer-type
- OIL-NATIVE-TYPE
+ OIL-TYPE
  ;; No y/p bindings here on purpose - copy rides on native yank/paste via
  ;; the post-command hook further down, not a buffer-local override.
- (hash 'keymap (keymap (normal (ret ":oil-native-enter")
-                                (- ":oil-native-up")
-                                (q ":oil-native-close")
-                                (R ":oil-native-refresh")))
-       'on-write oil-native-on-write
-       'on-change oil-native-on-change))
+ (hash 'keymap (keymap (normal (ret ":oil-enter")
+                                (- ":oil-up")
+                                (q ":oil-close")
+                                (R ":oil-refresh")))
+       'on-write oil-on-write
+       'on-change oil-on-change))
 
 ;; ---------------------------------------------------------------------
 ;; Commands
@@ -528,28 +532,28 @@
 
 ;;@doc
 ;; Open the file manager for the current file's directory (or the Helix cwd
-;; for an unnamed buffer). If an oil-native buffer is already open
+;; for an unnamed buffer). If an oil buffer is already open
 ;; somewhere, switches to that instance and re-renders it for this
 ;; directory instead of opening a new one.
-(define (oil-native)
+(define (oil)
   (define doc-id (editor->doc-id (editor-focus)))
   (define path (editor-document->path doc-id))
   (define dir (if path (parent-name path) (get-helix-cwd)))
   (define target-id
-    (if (and *oil-native-last-doc-id* (editor-doc-exists? *oil-native-last-doc-id*))
-        (begin (editor-switch-action! *oil-native-last-doc-id* (Action/Replace))
-               *oil-native-last-doc-id*)
-        (create-buffer! OIL-NATIVE-TYPE)))
-  (oil-native-render! target-id dir))
+    (if (and *oil-last-doc-id* (editor-doc-exists? *oil-last-doc-id*))
+        (begin (editor-switch-action! *oil-last-doc-id* (Action/Replace))
+               *oil-last-doc-id*)
+        (create-buffer! OIL-TYPE)))
+  (oil-render! target-id dir))
 
-(define (oil-native-current-doc-id)
+(define (oil-current-doc-id)
   (editor->doc-id (editor-focus)))
 
 ;;@doc
 ;; Enter the directory under the cursor, or open the file under the cursor.
-(define (oil-native-enter)
-  (define doc-id (oil-native-current-doc-id))
-  (define st (oil-native-get-state doc-id))
+(define (oil-enter)
+  (define doc-id (oil-current-doc-id))
+  (define st (oil-get-state doc-id))
   (when st
     (let* ([dir (hash-get st 'dir)]
            [line-n (get-current-line-number)]
@@ -557,37 +561,37 @@
            [entry (and (< line-n (length lines)) (trim (list-ref lines line-n)))])
       (cond
         [(or (not entry) (string=? entry "")) #f]
-        [(string=? entry "../") (oil-native-render! doc-id (parent-name dir))]
-        [(oil-native-dir-entry? entry)
-         (oil-native-render! doc-id (oil-native-full-path dir entry))]
-        [else (helix.open (oil-native-full-path dir entry))]))))
+        [(string=? entry "../") (oil-render! doc-id (parent-name dir))]
+        [(oil-dir-entry? entry)
+         (oil-render! doc-id (oil-full-path dir entry))]
+        [else (helix.open (oil-full-path dir entry))]))))
 
 ;;@doc
 ;; Go to the parent directory.
-(define (oil-native-up)
-  (define doc-id (oil-native-current-doc-id))
-  (define st (oil-native-get-state doc-id))
-  (when st (oil-native-render! doc-id (parent-name (hash-get st 'dir)))))
+(define (oil-up)
+  (define doc-id (oil-current-doc-id))
+  (define st (oil-get-state doc-id))
+  (when st (oil-render! doc-id (parent-name (hash-get st 'dir)))))
 
 ;;@doc
 ;; Reload the current directory from disk, discarding any unsaved edits.
-(define (oil-native-refresh)
-  (define doc-id (oil-native-current-doc-id))
-  (define st (oil-native-get-state doc-id))
-  (when st (oil-native-render! doc-id (hash-get st 'dir))))
+(define (oil-refresh)
+  (define doc-id (oil-current-doc-id))
+  (define st (oil-get-state doc-id))
+  (when st (oil-render! doc-id (hash-get st 'dir))))
 
 ;;@doc
 ;; Close the file manager buffer.
-(define (oil-native-close)
+(define (oil-close)
   (helix.buffer-close))
 
 ;; ---------------------------------------------------------------------
 ;; Copy, via native yank/paste
 ;; ---------------------------------------------------------------------
-;; No oil-native command or keybinding for either half of this - native y
+;; No oil command or keybinding for either half of this - native y
 ;; yanks a selection to a register as always, native p pastes it as always.
 ;; A post-command hook (registered below) just watches for those two
-;; commands firing while an oil-native buffer is focused and, if what was
+;; commands firing while an oil buffer is focused and, if what was
 ;; yanked/pasted matches a real entry, stages a copy op the same way any
 ;; other edit gets staged: nothing happens until `:w` confirms it.
 ;;
@@ -596,35 +600,35 @@
 ;; text yank. And paste-then-rename-before-saving degrades to a plain
 ;; create, same caveat as with rename pairing above.
 
-(define (oil-native-observe-yank! doc-id)
-  (define st (oil-native-get-state doc-id))
+(define (oil-observe-yank! doc-id)
+  (define st (oil-get-state doc-id))
   (define dir (hash-get st 'dir))
   (define reg-values (register->value (selected-register!)))
   (define yanked (and (pair? reg-values) (trim (car reg-values))))
   (define known-entries (cons "../" (hash-get st 'entries)))
   (when (and yanked (> (string-length yanked) 0) (member yanked known-entries)
              (not (string=? yanked "../")))
-    (set! *oil-native-clipboard*
-          (list (oil-native-full-path dir yanked) (oil-native-dir-entry? yanked) yanked))))
+    (set! *oil-clipboard*
+          (list (oil-full-path dir yanked) (oil-dir-entry? yanked) yanked))))
 
-(define (oil-native-observe-paste! doc-id)
+(define (oil-observe-paste! doc-id)
   (define reg-values (register->value (selected-register!)))
   (define pasted-text (and (pair? reg-values) (trim (car reg-values))))
-  (when (and *oil-native-clipboard* pasted-text
-             (string=? pasted-text (list-ref *oil-native-clipboard* 2)))
+  (when (and *oil-clipboard* pasted-text
+             (string=? pasted-text (list-ref *oil-clipboard* 2)))
     (let* ([line-n (get-current-line-number)]
            [lines (split-many (text.rope->string (editor->text doc-id)) "\n")]
            [on-line (and (< line-n (length lines)) (trim (list-ref lines line-n)))])
       (when (and on-line (string=? on-line pasted-text))
-        (let* ([source (list-ref *oil-native-clipboard* 0)]
-               [current-names (oil-native-parse-buffer doc-id)]
-               [background (oil-native-remove-one pasted-text current-names)])
+        (let* ([source (list-ref *oil-clipboard* 0)]
+               [current-names (oil-parse-buffer doc-id)]
+               [background (oil-remove-one pasted-text current-names)])
           (if (member pasted-text background)
-              (set-error! (string-append "oil-native: \"" pasted-text
+              (set-error! (string-append "oil: \"" pasted-text
                                           "\" already exists here - rename one of them, then paste again"))
               (begin
-                (oil-native-record-copy! doc-id pasted-text source)
-                (set-status! (string-append "oil-native: staged copy of " (oil-native-basename source)
+                (oil-record-copy! doc-id pasted-text source)
+                (set-status! (string-append "oil: staged copy of " (oil-basename source)
                                              " as " pasted-text " (pending - :w to apply)")))))))))
 
 (register-hook 'post-command
@@ -633,8 +637,8 @@
                  ;; view can already be torn down by the time this fires during
                  ;; quit - so doc-id must be checked before it's used as a key.
                  (let* ([doc-id (editor->doc-id (editor-focus))]
-                        [st (and doc-id (oil-native-get-state doc-id))])
+                        [st (and doc-id (oil-get-state doc-id))])
                    (when st
-                     (when (string=? command-name "yank") (oil-native-observe-yank! doc-id))
+                     (when (string=? command-name "yank") (oil-observe-yank! doc-id))
                      (when (or (string=? command-name "paste_after") (string=? command-name "paste_before"))
-                       (oil-native-observe-paste! doc-id))))))
+                       (oil-observe-paste! doc-id))))))
