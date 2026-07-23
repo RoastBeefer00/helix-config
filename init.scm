@@ -79,6 +79,22 @@
 (define (tmux-sessionizer!)
   (helix.run-shell-command "tmux" "neww" "~/.local/scripts/tmux-sessionizer"))
 
+;;;;;;;;;;;;;;;;;;;;;;;; :q / :q! semantics ;;;;;;;;;;;;;;;;;
+;; Native :q/:quit closes the current *view* (split), only exiting once
+;; every view is gone. Override :q/:q! (Steel globals of the same name take
+;; priority over the built-in typed commands) so they close the current
+;; *buffer* instead - and still exit when it's the last one, since that's
+;; what a lone remaining view's quit already does.
+(define (q . args)
+  (if (<= (length (editor-all-documents)) 1)
+      (apply helix.quit args)
+      (apply helix.buffer-close args)))
+
+(define (q! . args)
+  (if (<= (length (editor-all-documents)) 1)
+      (apply helix.quit! args)
+      (apply helix.buffer-close! args)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;; Keybindings ;;;;;;;;;;;;;;;;;;;;;;;
 
 (keymap (global)
