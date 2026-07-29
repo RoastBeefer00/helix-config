@@ -14,6 +14,7 @@
     (#:name showkeys #:git-url "https://github.com/HeitorAugustoLN/showkeys.hx.git")
     (#:name fidget.hx #:git-url "https://github.com/RoastBeefer00/fidget.hx.git")
     (#:name notify #:git-url "https://github.com/chuwy/notify.hx.git")
+    (#:name tf-docs.hx #:git-url "https://github.com/RoastBeefer00/tf-docs.hx.git")
     ))
 
 (define dylibs '())

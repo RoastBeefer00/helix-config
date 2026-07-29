@@ -20,6 +20,7 @@
 (require "html.hx/html.scm")
 (enable-html-auto-close!)
 (require "showkeys/showkeys.scm")
+(require "tf-docs.hx/tf-docs.scm")
 (set-sidekick-backend! 'pty)
 
 ;; Override: C-l focuses the sidekick panel when at the right edge instead of
@@ -165,6 +166,8 @@
                (j ":smart-window-down!")
                (k ":smart-window-up!")
                (l ":smart-window-right!"))
+            ;; Terraform docs for the resource/data/provider block under the cursor
+            (t (d ":terraform-docs"))
             ;; Diagnostics (nixvim: <leader>xx/<leader>xd/<leader>xs)
             (x (x "diagnostics_picker")
                (d "diagnostics_picker")
