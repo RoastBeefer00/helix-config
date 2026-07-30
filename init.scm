@@ -21,7 +21,7 @@
 (enable-html-auto-close!)
 (require "showkeys/showkeys.scm")
 (require "tf-docs.hx/tf-docs.scm")
-(set-sidekick-backend! 'pty)
+(set-sidekick-backend! 'auto)
 
 ;; Override: C-l focuses the sidekick panel when at the right edge instead of
 ;; falling through to tmux (which can't navigate into a component overlay).
