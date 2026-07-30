@@ -39,13 +39,6 @@ C-u = ["half_page_up", "goto_window_center"]
 # [keys.insert]
 # j = { k = "normal_mode" } # Maps `jk` to exit insert mode
 
-[keys.terminal]
-C-h = ":smart-window-left!"
-C-j = ":smart-window-down!"
-C-k = ":smart-window-up!"
-C-l = ":smart-window-right!"
-C-space = "normal_mode"
-
 [editor.statusline]
 left = ["mode", "spinner"]
 center = ["file-name"]
