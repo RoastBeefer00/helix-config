@@ -23,13 +23,40 @@
 (require "tf-docs.hx/tf-docs.scm")
 (set-sidekick-backend! 'auto)
 
-;; Override: C-l focuses the sidekick panel when at the right edge instead of
-;; falling through to tmux (which can't navigate into a component overlay).
+;; Smart split navigation: try helix splits first; at the edge, navigate to
+;; the adjacent herdr pane (inside herdr) or tmux pane (inside tmux).
+;; Right edge additionally opens/focuses the sidekick panel when not in herdr.
+(define (smart-window-left!)
+  (define v (editor-focus))
+  (helix.static.jump_view_left)
+  (when (equal? v (editor-focus))
+    (if (sidekick-in-herdr?)
+        (helix.run-shell-command "herdr" "pane" "focus" "--direction" "left")
+        (helix.run-shell-command "tmux select-pane -L; or true"))))
+
 (define (smart-window-right!)
   (define v (editor-focus))
   (helix.static.jump_view_right)
   (when (equal? v (editor-focus))
-    (sidekick-focus!)))
+    (if (sidekick-in-herdr?)
+        (helix.run-shell-command "herdr" "pane" "focus" "--direction" "right")
+        (sidekick-focus!))))
+
+(define (smart-window-up!)
+  (define v (editor-focus))
+  (helix.static.jump_view_up)
+  (when (equal? v (editor-focus))
+    (if (sidekick-in-herdr?)
+        (helix.run-shell-command "herdr" "pane" "focus" "--direction" "up")
+        (helix.run-shell-command "tmux select-pane -U; or true"))))
+
+(define (smart-window-down!)
+  (define v (editor-focus))
+  (helix.static.jump_view_down)
+  (when (equal? v (editor-focus))
+    (if (sidekick-in-herdr?)
+        (helix.run-shell-command "herdr" "pane" "focus" "--direction" "down")
+        (helix.run-shell-command "tmux select-pane -D; or true"))))
 (require "vim.hx/init.scm")
 (set-vim-keybindings!)
 (require "fidget.hx/fidget.scm")
